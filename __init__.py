@@ -1,11 +1,17 @@
-# imports here...
+from .nodes.text.variable_builder import (
+    TextVariableBuilder,
+)
 
 
 NODE_CLASS_MAPPINGS = {
+    # TEXTS
+    "TextVariableBuilder": TextVariableBuilder,
 }
 
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    # TEXTS
+    "TextVariableBuilder": "Text variable builder [darkilNodes]",
 }
 
 
