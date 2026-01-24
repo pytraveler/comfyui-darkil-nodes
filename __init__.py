@@ -1,17 +1,27 @@
 from .nodes.text.variable_builder import (
     TextVariableBuilder,
 )
+from .nodes.text.advanced_variable_builder import (
+    AdvancedVariableBuilder,
+)
+from .nodes.text.prompt_builder import (
+    SimplePromptBuilder,
+)
 
 
 NODE_CLASS_MAPPINGS = {
     # TEXTS
-    "TextVariableBuilder": TextVariableBuilder,
+    "darkilTextVariableBuilder": TextVariableBuilder,
+    "darkilAdvancedVariableBuilder": AdvancedVariableBuilder,
+    "darkilPromptBuilder": SimplePromptBuilder,
 }
 
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # TEXTS
-    "TextVariableBuilder": "Text variable builder [darkilNodes]",
+    "darkilTextVariableBuilder": "Variable builder [darkilNodes]",
+    "darkilAdvancedVariableBuilder": "Advanced variable builder [darkilNodes]",
+    "darkilPromptBuilder": "Building dynamic prompt [darkilNodes]",
 }
 
 

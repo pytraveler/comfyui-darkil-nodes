@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Any, Dict, List, Tuple, Union
 
-from ..utilities import (
+from .utilities import (
     choose_variant,
     parse_input_lines,
     raw_as_bool, 
@@ -34,24 +34,24 @@ class TextVariableBuilder:
     RETURN_TYPES = ("STRING", "STRING",)
     RETURN_NAMES = ("VAR", "❓help",)
     FUNCTION = "get_variable"
-    CATEGORY = "darkilNodes/texts"
+    CATEGORY = "darkilNodes/text"
     OUTPUT_NODE = False
     
     HELP_TEXT = """TextVariableBuilder node helps you create and manipulate text variables.
 
 Inputs:
-- **switch** (BOOLEAN): Enable or disable the output generation.
-- **out_val_by_switch** (BOOLEAN): If enabled, the node returns an empty string when `switch` is False.
-- **var_name** (STRING): Name of the variable to assign. Leave empty to get only the value.
-- **var_value** (STRING): Template text supporting placeholders and shortcuts.
-- **INPUT_VAR** (optional, various types): Define additional variables in the format `name=value` per line.
+   - **switch** (BOOLEAN): Enable or disable the output generation.
+   - **out_val_by_switch** (BOOLEAN): If enabled, the node returns an empty string when `switch` is False.
+   - **var_name** (STRING): Name of the variable to assign. Leave empty to get only the value.
+   - **var_value** (STRING): Template text supporting placeholders and shortcuts.
+   - **INPUT_VAR** (optional, various types): Define additional variables in the format `name=value` per line.
 
 Placeholders in `var_value`:
-- `{{variable}}` – replace with the value of a defined variable.
-- `{{default}}` or `{{}}` – insert the default single‑line value from INPUT_VAR.
-- `{{DATE}}` / `{{TIME}}` – current date (YYYYMMDD) or time (HHMMSS).
-- Conditional: `{{IF:cond:true:false}}` or `{{IFNOT:cond:true:false}}` where *cond* can be a boolean, variable name, or expression.
-- Fallback: `{{var??\"fallback\"}}` – use *var* if defined else the fallback literal.
+   - `{{variable}}` – replace with the value of a defined variable.
+   - `{{default}}` or `{{}}` – insert the default single-line value from INPUT_VAR.
+   - `{{DATE}}` / `{{TIME}}` – current date (YYYYMMDD) or time (HHMMSS).
+   - Conditional: `{{IF:cond:true:false}}` or `{{IFNOT:cond:true:false}}` where *cond* can be a boolean, variable name, or expression.
+   - Fallback: `{{var??\"fallback\"}}` – use *var* if defined else the fallback literal.
 
 You can also use random variants in INPUT_VAR values separated by `|`, e.g. `greeting=Hello|Hi|Hey`."""
 

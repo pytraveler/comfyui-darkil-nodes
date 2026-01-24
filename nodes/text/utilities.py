@@ -1,6 +1,6 @@
 import random
 import re
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 
 def split_input_lines(
@@ -82,17 +82,36 @@ def strip_quotes(token: str) -> Union[str, None]:
     return None
 
 
-def remove_multiline_comments(text: str) -> str:
-    return re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+# def remove_multiline_comments(text: str) -> str:
+#     return re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
 
 
-def remove_singleline_comments(text: str) -> str:
-    cleaned_lines = []
-    for line in text.splitlines():
-        cleaned_lines.append(line.split("#", 1)[0])
-    return "\n".join(cleaned_lines)
+# def remove_singleline_comments(text: str) -> str:
+#     cleaned_lines = []
+#     for line in text.splitlines():
+#         cleaned_lines.append(line.split("#", 1)[0])
+#     return "\n".join(cleaned_lines)
+
+
+# def strip_all_comments(text: str) -> str:
+#     no_ml = remove_multiline_comments(text)
+#     return remove_singleline_comments(no_ml)
 
 
 def strip_all_comments(text: str) -> str:
-    no_ml = remove_multiline_comments(text)
-    return remove_singleline_comments(no_ml)
+    text = re.sub(r'/\*[\s\S]*?\*/', '', text)
+    text = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^#.*$', '', text, flags=re.MULTILINE)
+    return text
+
+
+def parse_other_vals(other_input_str: Optional[list] = None, 
+                    exist_list: Optional[List[str]] = None) -> Tuple[Dict[str, str], str]:
+    if not other_input_str:
+        return parse_input_lines(exist_list or [])
+
+    all_lines: List[str] = list(exist_list) if exist_list else []
+    for element in other_input_str:
+        all_lines.extend(split_input_lines(element))
+
+    return parse_input_lines(all_lines)
