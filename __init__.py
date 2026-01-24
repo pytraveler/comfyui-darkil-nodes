@@ -6,8 +6,13 @@ from .nodes.text.simple import (
     TextNotEmpty,
     TextLinesCount,
 )
+
 from .nodes.logic.multi_toggles import MultiToggles
 from .nodes.logic.custom_combo import CustomCombo
+
+from .nodes.lora.wan22_lora_list_builder import Wan22VideoLoraListBuilder
+
+from .nodes.files.files_list import FilesList
 
 
 NODE_CLASS_MAPPINGS = {
@@ -22,6 +27,12 @@ NODE_CLASS_MAPPINGS = {
     # LOGIC
     "darkilMultiToggles": MultiToggles,
     "darkilCustomCombo": CustomCombo,
+    
+    # LORA
+    "darkilWan22VideoLoraListBuilder": Wan22VideoLoraListBuilder,
+    
+    # FILES
+    "darkilFilesList": FilesList,
 }
 
 
@@ -38,6 +49,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "darkilMultiToggles": "Multi toggles [darkilNodes]",
     "darkilCustomCombo": "Custom combo box [darkilNodes]",
 
+    # LORA
+    "darkilWan22VideoLoraListBuilder": "LoRA list for WanVideoWrapper by Kijai [darkilNodes]",
+    
+    # FILES
+    "darkilFilesList": "Files list from dir [darkilNodes]",
 }
 
 

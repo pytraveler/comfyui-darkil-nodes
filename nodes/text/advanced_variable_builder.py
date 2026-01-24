@@ -54,22 +54,22 @@ conditional expressions, optional defaults and supports random variants.
 All placeholder syntax uses double curly braces `{{…}}`.
 
 Placeholder types:
-   {{var}}                – Insert the resolved value of another variable defined in INPUT_VAR or DYNAMIC_* inputs.
-   {{"text"}}             – Insert a literal string (quotes are optional).
-   {{DATE}}               – Current date in **YYYYMMDD** format.
-   {{TIME}}               – Current time in **HHMMSS** format.
-   {{IF:cond:true:false}}   – If *cond* evaluates to true, use *true*, otherwise *false*.
-   {{IFNOT:cond:true:false}}– Same as IF but negates the condition.
-   {{var??default}}       – Use *var* if it resolves to a non-empty value; otherwise fall back to *default*.
+    {{var}}                – Insert the resolved value of another variable defined in INPUT_VAR or DYNAMIC_* inputs.
+    {{"text"}}             – Insert a literal string (quotes are optional).
+    {{DATE}}               – Current date in **YYYYMMDD** format.
+    {{TIME}}               – Current time in **HHMMSS** format.
+    {{IF:cond:true:false}}   – If *cond* evaluates to true, use *true*, otherwise *false*.
+    {{IFNOT:cond:true:false}}– Same as IF but negates the condition.
+    {{var??default}}       – Use *var* if it resolves to a non-empty value; otherwise fall back to *default*.
 
 Special variable names:
-   default, def, _        – Resolve to the “default single-line” value supplied via the optional INPUT_VAR (the last line without an `=` in the input).
+    default, def, _        – Resolve to the “default single-line” value supplied via the optional INPUT_VAR (the last line without an `=` in the input).
 
 Features:
-   • Multiple values for a variable can be separated by `|` and one will be chosen at random.
-   • Logical expressions support `&&` (AND) and `||` (OR) with boolean literals or other variables.
-   • Cyclic references are detected; they produce an empty string and emit a warning.
-   • The node strips comments (`# …`) from the variable template before processing.
+    • Multiple values for a variable can be separated by `|` and one will be chosen at random.
+    • Logical expressions support `&&` (AND) and `||` (OR) with boolean literals or other variables.
+    • Cyclic references are detected; they produce an empty string and emit a warning.
+    • The node strips comments (`# …`) from the variable template before processing.
 
 Options:
    - **switch**: Enable/disable generation. When off, the node returns an empty variable (or only help text if `out_val_by_switch` is True).
@@ -78,11 +78,11 @@ Options:
    - **var_text**: Multiline template containing placeholders.
 
 Example:
-   var_text = "Hello {{user}}! Today is {{DATE}}."
-   INPUT_VAR = "user = Alice"
+    var_text = "Hello {{user}}! Today is {{DATE}}."
+    INPUT_VAR = "user = Alice"
 
 Result (with default settings):
-   variable_name = Hello Alice! Today is 20231130
+    variable_name = Hello Alice! Today is 20231130
 
 Use the dynamic inputs (`DYNAMIC_1`, `DYNAMIC_2`, …) to add additional variables at runtime."""
 
