@@ -84,7 +84,7 @@ You can also use random variants in INPUT_VAR values separated by `|`, e.g. `gre
 
             if name in stack:  # cyclic reference
                 log.warning(
-                    f"Cyclic variable reference detected: {' -> '.join(stack + [name])}"
+                    f"[darkilNodes.TextVariableBuilder] Cyclic variable reference detected: {' -> '.join(stack + [name])}"
                 )
                 return ""
 

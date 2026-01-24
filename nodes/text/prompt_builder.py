@@ -17,53 +17,56 @@ class SimplePromptBuilder:
     FUNCTION = "build_prompt"
     
     HELP_TEXT = """Prompt Writing Help:
-- Use placeholders {{NAME:TYPE:VALUE:DEFAULT:USE_INPUT}} to define dynamic values.
+- Placeholders: `{{NAME:TYPE:VALUE:DEFAULT:USE_INPUT}}` define dynamic values.
    * TYPE can be STRING, INT, FLOAT, COMBO, SLIDER, KNOB.
-   * VALUE is the current value, or MIN value (INT, FLOAT), or a list of values separated by ';' (optional).
-   * DEFAULT is the fallback value, or MAX value (INT, FLOAT) (optional).
-   * USE_INPUT flag (true/false) determines whether an input socket is created for this placeholder.
+   * VALUE is the current value (or minimum for numeric types).
+   * DEFAULT is the fallback value (or maximum for numeric types).
+   * USE_INPUT (`true`/`false`) creates an input socket for this placeholder when true.
 
-- Toggle sections with [[TAG]]...[[/TAG]] to enable or disable blocks of text.
-   The tag creates a toggle widget; when disabled, the wrapped block is removed.
-   Syntax [[TAG:GROUP]]...[[/TAG]] creates a toggle belonging to GROUP. Enabling one toggle in the same group disables all others.
+- Toggle tags: `[[TAG]]...[[/TAG]]` or `[[TAG:GROUP]]...[[/TAG]]`.
+   * When a tag evaluates to false the wrapped block is removed.
+   * Tags sharing the same GROUP are mutually exclusive – enabling one disables the others.
 
-- Add comments that are ignored during processing:
-    // line comment
-    # another line comment
-    /* multi-line
-       comment */
+- Comments (ignored during processing):
+   * `// line comment`
+   * `# line comment`
+   * `/* multi-line comment */`
 
-- Include an optional extra block using [%extra%]...[%extra%].
-   When this block is present, a toggle widget labeled “Extra text active” appears.
-   If the toggle is enabled, the content inside the extra block is processed in the same way as the main prompt:
-   it can contain placeholders {{…}} and toggle tags [[TAG]]...[[/TAG]], which will generate their own dynamic widgets.
+- Optional extra block: `[%extra%]...[%/extra%]`.
+   * When present a toggle widget “Extra text active” appears.
+   * If the toggle is enabled, the block is processed exactly like the main prompt (placeholders, toggles, directives).
 
-- Spaceless blocks: `{%spaceless%}...{%spaceless stop%}` removes all excess whitespace
-   (spaces, newlines, tabs) inside the block, collapsing them into a single space and stripping leading/trailing spaces.
-   This processing is applied after placeholders and toggle tags have been resolved. `{%sl%}...{%sl stop%}`- short version.
+- Optional variables block: `[%vars%]...[%/vars%]` - ignored on backend. 
 
-- Additional formatting directives:
-   * lower (lw) – converts text to lowercase.
-   * upper (up) – converts text to uppercase.
-   * title (tl) – makes each word Title-Case.
-   * sentence (snt) – capitalises the first character of each sentence.
-   * trim (tr) – removes leading/trailing whitespace from the block.
-   * dedent (dd) – removes common indentation (like Python’s textwrap.dedent).
-   * collapse_newlines (cnl) – squeezes multiple consecutive newlines into a single newline.
-   * strip_punct (sp) – deletes all punctuation characters.
-   * unescape_html (uneh) – decodes HTML entities (&amp;, &lt;, …).
-   * list (cl) – converts the block into a clean list by removing empty lines and stripping leading spaces from each remaining line.
-   * list_rtrim (clr) – converts the block into a clean list by removing empty lines and removing spaces to the left and right of each remaining line.
-   * list_and (la) – converts a block to a comma-separated string of values and changes the last comma to `and`.
+- Spaceless blocks:
+   * `{%spaceless%}…{%spaceless stop%}` or short form `{%sl%}…{%sl stop%}`
+   * All excess whitespace (spaces, newlines, tabs) inside the block is collapsed to a single space and trimmed.
+
+- Formatting directives (can be nested):
+   * `lower` (`lw`) – convert text to lowercase.
+   * `upper` (`up`) – convert text to uppercase.
+   * `title` (`tl`) – Title-Case each word.
+   * `sentence` (`snt`) – capitalise the first character of each sentence.
+   * `trim` (`tr`) – remove leading/trailing whitespace.
+   * `dedent` (`dd`) – remove common indentation (like Python’s textwrap.dedent).
+   * `collapse_newlines` (`cnl`) – squeeze multiple consecutive newlines into one.
+   * `strip_punct` (`sp`) – delete all punctuation characters.
+   * `unescape_html` (`uneh`) – decode HTML entities (&amp;, &lt;, …).
+   * `list` (`cl`) – clean list: remove empty lines and strip leading spaces.
+   * `list_rtrim` (`clr`) – clean list and trim both sides of each line.
+   * `list_and` (`la`) – convert a list to a comma-separated string, changing the last comma to “and”.
+
+- UI Toggles (client-side only):
+   * **Prompt enabled** – disables all processing of the main prompt when off.
+   * **Extra enabled** – controls whether the extra block is processed.
+   * **Main Prompt visible** – hides/shows the prompt input widget.
 
 - Outputs:
-   * compiled_prompt – the main prompt after processing placeholders, toggles, comments,
-      spaceless blocks, additional formatting directives, and (if enabled) the extra block.
-   * ❓help – this help text.
-   * extra_compiled – the compiled result of only the [%extra%]…[%extra%] block. If the block is absent
-      or the “Extra text active” toggle is off, an empty string is returned.
+   * `compiled_prompt` – the processed main prompt (empty if disabled).
+   * `extra_compiled` – the processed extra block (empty if absent or disabled).
+   * `❓help` – this help text.
 
-All other text remains unchanged in the compiled prompt."""
+All other text remains unchanged in the compiled output."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -196,6 +199,11 @@ All other text remains unchanged in the compiled prompt."""
             r'\[\%extra\%\]([\s\S]*?)\[\%\/?extra\%\]', flags=re.MULTILINE
         )
         
+        # Regex for vars block: [%vars%]...[%/vars%] – ignored on backend
+        vars_block_pattern = re.compile(
+            r'\[\%vars\%\]([\s\S]*?)\[\%\/?vars\%\]', flags=re.MULTILINE
+        )
+        
         # -----------------------------------------------------------------
         # Load cached values (widget states) and merge with any kwargs passed
         # -----------------------------------------------------------------
@@ -203,7 +211,7 @@ All other text remains unchanged in the compiled prompt."""
             _cachedValues = json.loads(cachedValues)
         except Exception as e:  # pragma: no cover
             _cachedValues = {}
-            log.error(f"JSON parse error: {e}.")
+            log.error(f"[darkilNodes.SimplePromptBuilder] JSON parse error: {e}.")
 
         _cachedValues = {**_cachedValues, **kwargs}
         
@@ -213,6 +221,37 @@ All other text remains unchanged in the compiled prompt."""
         for _reserved_word in (COMPILED_PROMPT, EXTRA_COMPILED,):
             _cachedValues.pop(_reserved_word, "")
 
+        # -----------------------------------------------------------------
+        # Strip comments before any further processing
+        # -----------------------------------------------------------------
+        prompt_clean = strip_all_comments(prompt)
+        
+        # -----------------------------------------------------------------
+        # Remove [%vars%]...[%/vars%] block – ignored on backend
+        # -----------------------------------------------------------------
+        var_match = self.vars_block_pattern.search(prompt_clean)
+        if var_match:
+            # The content is completely ignored; remove it from the prompt.
+            prompt_without_vars = (
+                prompt_clean[:var_match.start()] + prompt_clean[var_match.end():]
+            )
+        else:
+            prompt_without_vars = prompt_clean
+        
+        # -----------------------------------------------------------------
+        # Extract optional extra block [%extra%]...[%extra%]
+        # -----------------------------------------------------------------
+        extra_match = extra_block_pattern.search(prompt_clean)
+        if extra_match:
+            extra_raw = extra_match.group(1)
+            # Remove the whole block from the main prompt
+            prompt_main = (
+                prompt_without_vars[:extra_match.start()] + prompt_without_vars[extra_match.end():]
+            )
+        else:
+            extra_raw = ""
+            prompt_main = prompt_without_vars
+        
         # -----------------------------------------------------------------
         # Helper to apply toggle tags based on cached boolean values
         # -----------------------------------------------------------------
@@ -228,25 +267,6 @@ All other text remains unchanged in the compiled prompt."""
 
                 return inner if enabled else ""
             return tag_pattern.sub(repl, text)
-            
-        # -----------------------------------------------------------------
-        # Strip comments before any further processing
-        # -----------------------------------------------------------------
-        prompt_clean = strip_all_comments(prompt)
-        
-        # -----------------------------------------------------------------
-        # Extract optional extra block [%extra%]...[%extra%]
-        # -----------------------------------------------------------------
-        extra_match = extra_block_pattern.search(prompt_clean)
-        if extra_match:
-            extra_raw = extra_match.group(1)
-            # Remove the whole block from the main prompt
-            prompt_main = (
-                prompt_clean[:extra_match.start()] + prompt_clean[extra_match.end():]
-            )
-        else:
-            extra_raw = ""
-            prompt_main = prompt_clean
         
         # -----------------------------------------------------------------
         # Apply toggle tags to the main prompt
@@ -274,8 +294,6 @@ All other text remains unchanged in the compiled prompt."""
         else:
             compiled_prompt = ""
         
-        
-
         # -----------------------------------------------------------------
         # Build extra_compiled if the extra block exists and is active
         # -----------------------------------------------------------------

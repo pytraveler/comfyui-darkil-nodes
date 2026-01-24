@@ -82,22 +82,6 @@ def strip_quotes(token: str) -> Union[str, None]:
     return None
 
 
-# def remove_multiline_comments(text: str) -> str:
-#     return re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
-
-
-# def remove_singleline_comments(text: str) -> str:
-#     cleaned_lines = []
-#     for line in text.splitlines():
-#         cleaned_lines.append(line.split("#", 1)[0])
-#     return "\n".join(cleaned_lines)
-
-
-# def strip_all_comments(text: str) -> str:
-#     no_ml = remove_multiline_comments(text)
-#     return remove_singleline_comments(no_ml)
-
-
 def strip_all_comments(text: str) -> str:
     text = re.sub(r'/\*[\s\S]*?\*/', '', text)
     text = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
@@ -115,3 +99,11 @@ def parse_other_vals(other_input_str: Optional[list] = None,
         all_lines.extend(split_input_lines(element))
 
     return parse_input_lines(all_lines)
+
+
+def is_empty_text(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    if not text:
+        return True
+    return len(text.strip(" \n\r\t;")) == 0

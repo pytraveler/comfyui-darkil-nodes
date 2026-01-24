@@ -117,7 +117,7 @@ Use the dynamic inputs (`DYNAMIC_1`, `DYNAMIC_2`, …) to add additional variabl
 
             if name in stack:                     
                 log.warning(
-                    f"Cyclic variable reference detected: {' -> '.join(stack + [name])}"
+                    f"[darkilNodes.AdvancedVariableBuilder] Cyclic variable reference detected: {' -> '.join(stack + [name])}"
                 )
                 return ""
 
