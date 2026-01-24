@@ -16,7 +16,7 @@ class CustomCombo:
     FUNCTION = "select_from_list"         
     CATEGORY = "darkilNodes/logic"
     OUTPUT_NODE = False   
-    OUTPUT_IS_LIST = (False,)
+    OUTPUT_IS_LIST = (False, False,)
     
     HELP_TEXT = """Select an option from a custom combo list defined in the node's PROPERTY `text_for_combo`. 
 Use ';' or '|' to separate multiple items. The chosen value is output as `str_selected`, 

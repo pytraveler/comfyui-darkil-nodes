@@ -13,7 +13,7 @@ from typing import (
 from functools import partial
 from itertools import compress
 
-import folder_paths
+import folder_paths  # ComfyUI imports
 
 
 log = logging.getLogger(__name__)

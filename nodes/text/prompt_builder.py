@@ -3,8 +3,8 @@ import logging
 import re
 from typing import Callable, Dict, Tuple
 
-import directives
-from utilities import (
+from .directives import *
+from .utilities import (
     strip_all_comments,
 )
 
@@ -96,32 +96,32 @@ All other text remains unchanged in the compiled output."""
 
     # Mapping of tag aliases to the name of the static method that implements them
     _DIRECTIVE_FUNCS: Dict[str, Callable] = {
-        "spaceless": directives.directive_spaceless,
-        "sl": directives.directive_spaceless,
-        "lower": directives.directive_lower,
-        "lw": directives.directive_lower,
-        "upper": directives.directive_upper,
-        "up": directives.directive_upper,
-        "title": directives.directive_title,
-        "tl": directives.directive_title,
-        "sentence": directives.directive_sentence,
-        "snt": directives.directive_sentence,
-        "trim": directives.directive_trim,
-        "tr": directives.directive_trim,
-        "dedent": directives.directive_dedent,
-        "dd": directives.directive_dedent,
-        "collapse_newlines": directives.directive_collapse_newlines,
-        "cnl": directives.directive_collapse_newlines,
-        "strip_punct": directives.directive_strip_punct,
-        "sp": directives.directive_strip_punct,
-        "unescape_html": directives.directive_unescape_html,
-        "uneh": directives.directive_unescape_html,
-        "list": directives.directive_list,
-        "cl": directives.directive_list,
-        "list_rtrim": directives.directive_list_right,
-        "clr": directives.directive_list_right,
-        "list_and": directives.directive_list_and,
-        "la": directives.directive_list_and
+        "spaceless": directive_spaceless,
+        "sl": directive_spaceless,
+        "lower": directive_lower,
+        "lw": directive_lower,
+        "upper": directive_upper,
+        "up": directive_upper,
+        "title": directive_title,
+        "tl": directive_title,
+        "sentence": directive_sentence,
+        "snt": directive_sentence,
+        "trim": directive_trim,
+        "tr": directive_trim,
+        "dedent": directive_dedent,
+        "dd": directive_dedent,
+        "collapse_newlines": directive_collapse_newlines,
+        "cnl": directive_collapse_newlines,
+        "strip_punct": directive_strip_punct,
+        "sp": directive_strip_punct,
+        "unescape_html": directive_unescape_html,
+        "uneh": directive_unescape_html,
+        "list": directive_list,
+        "cl": directive_list,
+        "list_rtrim": directive_list_right,
+        "clr": directive_list_right,
+        "list_and": directive_list_and,
+        "la": directive_list_and
     }
 
     @classmethod
@@ -151,7 +151,7 @@ All other text remains unchanged in the compiled output."""
 
             fun = cls._DIRECTIVE_FUNCS.get(tag)
             if callable(fun):
-                result = getattr(cls, fun)(processed_inner)
+                result = fun(processed_inner)
             else:
                 # Fallback – should never happen because of regex constraints
                 result = processed_inner
@@ -229,7 +229,7 @@ All other text remains unchanged in the compiled output."""
         # -----------------------------------------------------------------
         # Remove [%vars%]...[%/vars%] block – ignored on backend
         # -----------------------------------------------------------------
-        var_match = self.vars_block_pattern.search(prompt_clean)
+        var_match = vars_block_pattern.search(prompt_clean)
         if var_match:
             # The content is completely ignored; remove it from the prompt.
             prompt_without_vars = (
@@ -241,7 +241,7 @@ All other text remains unchanged in the compiled output."""
         # -----------------------------------------------------------------
         # Extract optional extra block [%extra%]...[%extra%]
         # -----------------------------------------------------------------
-        extra_match = extra_block_pattern.search(prompt_clean)
+        extra_match = extra_block_pattern.search(prompt_without_vars)
         if extra_match:
             extra_raw = extra_match.group(1)
             # Remove the whole block from the main prompt

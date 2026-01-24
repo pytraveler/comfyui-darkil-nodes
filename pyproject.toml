@@ -1,15 +1,15 @@
 [project]
 name = "comfyui-darkil-nodes"
-version = "0.1.0"
+version = "0.1.1"
 description = "Various custom nodes for improved usability."
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = []
 
 [tool.comfy]
-PublisherId = "darkil" # TODO (fill in Publisher ID from Comfy Registry Website).
-DisplayName = "ComfyUI-darkil-nodes" # Display name for the Custom Node. Can be changed later.
-Icon = "https://avatars.githubusercontent.com/u/72470814" # SVG, PNG, JPG or GIF (MAX. 800x400px)
+PublisherId = "darkil" 
+DisplayName = "ComfyUI-darkil-nodes"
+Icon = "https://avatars.githubusercontent.com/u/72470814" 
 
 [project.urls]
 Repository = "https://github.com/pytraveler/comfyui-darkil-nodes"

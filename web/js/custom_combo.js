@@ -53,7 +53,7 @@ app.registerExtension({
             requestAnimationFrame(async () => {
                 if (!comboValueInitialized) {
                     comboValueInitialized = true;
-                    const _value = node.widgets_values[0];
+                    const _value = node.widgets_values ? node.widgets_values[0] : undefined;
                     if (_value && selectorWidget) selectorWidget.value = _value;
                 }
                 updateSelectorWidget();

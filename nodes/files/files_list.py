@@ -34,7 +34,7 @@ class FilesList:
     RETURN_NAMES = ("found_list", "found_as_text", "last_filename", "first_filename", "files_count", "❓help",)
     FUNCTION = "process"
     CATEGORY = "darkilNodes/files"
-    OUTPUT_IS_LIST = (True, False, False, False, False)
+    OUTPUT_IS_LIST = (True, False, False, False, False, False)
     
     HELP_TEXT = """Lists files in a folder based on a glob pattern. Parameters:
 - **folder_path** (STRING): Path to the directory.
@@ -88,7 +88,7 @@ The node returns an empty list if the folder does not exist or contains no match
         keep_extensions: bool,
         keep_full_path: bool,
         **kwargs
-    ) -> Tuple[List[str], str, str, str]:
+    ) -> Tuple[List[str], str, str, str, int, str]:
 
         if not folder_path:
             return [], "", "", "", 0, self.HELP_TEXT

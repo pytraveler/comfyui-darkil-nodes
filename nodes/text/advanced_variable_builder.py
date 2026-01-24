@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Any, Dict, List, Tuple, Union
 
-from utilities import (
+from .utilities import (
     choose_variant,
     parse_other_vals,
     raw_as_bool,
@@ -86,6 +86,9 @@ Result (with default settings):
 
 Use the dynamic inputs (`DYNAMIC_1`, `DYNAMIC_2`, …) to add additional variables at runtime."""
 
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return float("NaN")
 
     def get_variable(
         self,

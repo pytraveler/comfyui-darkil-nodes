@@ -55,6 +55,10 @@ Placeholders in `var_value`:
 
 You can also use random variants in INPUT_VAR values separated by `|`, e.g. `greeting=Hello|Hi|Hey`."""
 
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return float("NaN")
+
     def get_variable(
         self,
         switch: bool,
@@ -179,7 +183,3 @@ You can also use random variants in INPUT_VAR values separated by `|`, e.g. `gre
         if var_name.strip():
             return (f"{var_name.strip()} = {final_value}", self.HELP_TEXT,)
         return (final_value, self.HELP_TEXT,)
-
-    @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
-        return float("NaN")

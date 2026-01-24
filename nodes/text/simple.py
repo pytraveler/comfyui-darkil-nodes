@@ -1,6 +1,6 @@
 from typing import Any, Dict, Tuple
 
-from utilities import is_empty_text
+from .utilities import is_empty_text
 
 
 class TextIsEmpty:
