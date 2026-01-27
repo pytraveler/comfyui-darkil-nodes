@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { setLocaleSetting } from "./utils.js";
 
 const NODE_NAME = "darkilAdvancedVariableBuilder";
 
@@ -75,8 +76,12 @@ app.registerExtension({
                 w.hidden = true;
                 w.computeSize = () => [0, -4];
             }
-
-            requestAnimationFrame(() => _recalcDynamicInputs(this));
+            
+            const node = this;
+            requestAnimationFrame(() => {
+                _recalcDynamicInputs(node);
+                setLocaleSetting(node);
+            });
 
             return ret;
         };

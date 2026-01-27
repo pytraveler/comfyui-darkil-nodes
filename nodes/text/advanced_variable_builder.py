@@ -12,6 +12,10 @@ from .utilities import (
     strip_quotes,
 )
 
+from ..global_utils import (
+    load_localized_help_text as localize_help_text,
+    class_name_to_node_name as def_node_name,
+)
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +42,7 @@ class AdvancedVariableBuilder:
             },
             "hidden": {
                 "OTHER_INPUT": ("STRING", {"default": "[]"}),
+                "COMFY_LOCALE_SETTING": ("STRING", {})
             },
         }
 
@@ -85,7 +90,7 @@ Result (with default settings):
     variable_name = Hello Alice! Today is 20231130
 
 Use the dynamic inputs (`DYNAMIC_1`, `DYNAMIC_2`, …) to add additional variables at runtime."""
-
+    
     @classmethod
     def IS_CHANGED(cls, *args, **kwargs):
         return float("NaN")
@@ -98,7 +103,6 @@ Use the dynamic inputs (`DYNAMIC_1`, `DYNAMIC_2`, …) to add additional variabl
         var_text: str,
         INPUT_VAR: Union[bool, str, int, float,
                         List[Union[bool, str, int, float]]] = "",
-        OTHER_INPUT: str = "[]",
         **kwargs,
     ) -> Tuple[str]:
         input_lines = split_input_lines(INPUT_VAR)
@@ -196,6 +200,12 @@ Use the dynamic inputs (`DYNAMIC_1`, `DYNAMIC_2`, …) to add additional variabl
 
             return placeholder_pattern.sub(repl, text)
 
+        _help_text = localize_help_text(
+            def_node_name(AdvancedVariableBuilder),
+            default=AdvancedVariableBuilder.HELP_TEXT,
+            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
+        )
+
         cleaned_text = strip_all_comments(var_text) if var_text else ""
 
         final_value = "" if not switch else replace_placeholders(cleaned_text, [])
@@ -206,9 +216,9 @@ Use the dynamic inputs (`DYNAMIC_1`, `DYNAMIC_2`, …) to add additional variabl
             escaped_value = final_value
 
         if out_val_by_switch is True and switch is False:
-            return ("", self.HELP_TEXT,)
+            return ("", _help_text,)
         
         if var_name.strip():
-            return (f"{var_name.strip()} = {escaped_value}", self.HELP_TEXT,)
+            return (f"{var_name.strip()} = {escaped_value}", _help_text,)
 
-        return (escaped_value, self.HELP_TEXT,)
+        return (escaped_value, _help_text,)

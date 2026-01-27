@@ -1,3 +1,5 @@
+from .nodes.global_utils import class_name_to_node_name as as_node_name
+
 from .nodes.text.variable_builder import TextVariableBuilder
 from .nodes.text.advanced_variable_builder import AdvancedVariableBuilder
 from .nodes.text.prompt_builder import SimplePromptBuilder
@@ -17,45 +19,44 @@ from .nodes.files.files_list import FilesList
 
 NODE_CLASS_MAPPINGS = {
     # TEXTS
-    "darkilTextVariableBuilder": TextVariableBuilder,
-    "darkilAdvancedVariableBuilder": AdvancedVariableBuilder,
-    "darkilPromptBuilder": SimplePromptBuilder,
-    "darkilTextIsEmpty": TextIsEmpty,
-    "darkilTextNotEmpty": TextNotEmpty,
-    "darkilTextLinesCount": TextLinesCount,
+    as_node_name(TextVariableBuilder): TextVariableBuilder,
+    as_node_name(AdvancedVariableBuilder): AdvancedVariableBuilder,
+    as_node_name(SimplePromptBuilder): SimplePromptBuilder,
+    as_node_name(TextIsEmpty): TextIsEmpty,
+    as_node_name(TextNotEmpty): TextNotEmpty,
+    as_node_name(TextLinesCount): TextLinesCount,
     
     # LOGIC
-    "darkilMultiToggles": MultiToggles,
-    "darkilCustomCombo": CustomCombo,
+    as_node_name(MultiToggles): MultiToggles,
+    as_node_name(CustomCombo): CustomCombo,
     
     # LORA
-    "darkilWan22VideoLoraListBuilder": Wan22VideoLoraListBuilder,
+    as_node_name(Wan22VideoLoraListBuilder): Wan22VideoLoraListBuilder,
     
     # FILES
-    "darkilFilesList": FilesList,
+    as_node_name(FilesList): FilesList,
 }
 
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # TEXTS
-    "darkilTextVariableBuilder": "Variable builder [darkilNodes]",
-    "darkilAdvancedVariableBuilder": "Advanced variable builder [darkilNodes]",
-    "darkilPromptBuilder": "Dynamic prompt builder [darkilNodes]",
-    "darkilTextIsEmpty": "Text is empty [darkilNodes]",
-    "darkilTextNotEmpty": "Text not empty [darkilNodes]",
-    "darkilTextLinesCount": "Text lines count [darkilNodes]",
+    as_node_name(TextVariableBuilder): "Variable builder [darkilNodes]",
+    as_node_name(AdvancedVariableBuilder): "Advanced variable builder [darkilNodes]",
+    as_node_name(SimplePromptBuilder): "Dynamic prompt builder [darkilNodes]",
+    as_node_name(TextIsEmpty): "Text is empty [darkilNodes]",
+    as_node_name(TextNotEmpty): "Text not empty [darkilNodes]",
+    as_node_name(TextLinesCount): "Text lines count [darkilNodes]",
     
     # LOGIC
-    "darkilMultiToggles": "Multi toggles [darkilNodes]",
-    "darkilCustomCombo": "Custom combo box [darkilNodes]",
+    as_node_name(MultiToggles): "Multi toggles [darkilNodes]",
+    as_node_name(CustomCombo): "Custom combo box [darkilNodes]",
 
     # LORA
-    "darkilWan22VideoLoraListBuilder": "LoRA list for WanVideoWrapper by Kijai [darkilNodes]",
+    as_node_name(Wan22VideoLoraListBuilder): "LoRA list for WanVideoWrapper by Kijai [darkilNodes]",
     
     # FILES
-    "darkilFilesList": "Files list from dir [darkilNodes]",
+    as_node_name(FilesList): "Files list from dir [darkilNodes]",
 }
-
 
 WEB_DIRECTORY = "./web/js"
 

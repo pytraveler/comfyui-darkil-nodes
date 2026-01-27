@@ -1,5 +1,10 @@
 from typing import Any, Dict, Tuple
 
+from ..global_utils import (
+    load_localized_help_text as localize_help_text,
+    class_name_to_node_name as def_node_name,
+)
+
 
 class CustomCombo:
 
@@ -8,6 +13,9 @@ class CustomCombo:
         return {
             "required": {
                 "list_selector": ("COMBO", {"default": "nope", "values": ["nope"]}),
+            },
+            "hidden": {
+                "COMFY_LOCALE_SETTING": ("STRING", {})
             },
         }
 
@@ -27,4 +35,10 @@ and this help text appears on the second output (`❓help`)."""
         return True
 
     def select_from_list(self, list_selector, *args, **kwargs) -> Tuple[str]:
-        return (list_selector, self.HELP_TEXT)
+        _help_text = localize_help_text(
+            def_node_name(CustomCombo),
+            default=CustomCombo.HELP_TEXT,
+            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
+        )
+        
+        return (list_selector, _help_text)

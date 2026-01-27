@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { setLocaleSetting } from "./utils.js";
 
 const NODE_NAME = "darkilPromptBuilder";
 const CACHE_KEY = "cachedValues";
@@ -584,6 +585,7 @@ app.registerExtension({
             requestAnimationFrame(() => {
                 initValues();
                 updateDynamicWidgets(_this_node);
+                setLocaleSetting(_this_node);
             });
             return ret;
         };

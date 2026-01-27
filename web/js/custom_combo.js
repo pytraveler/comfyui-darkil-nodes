@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { setLocaleSetting } from "./utils.js";
 
 const NODE_ID = "darkilCustomCombo";
 
@@ -57,6 +58,7 @@ app.registerExtension({
                     if (_value && selectorWidget) selectorWidget.value = _value;
                 }
                 updateSelectorWidget();
+                setLocaleSetting(node);
             });
 
             return result;

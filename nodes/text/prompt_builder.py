@@ -8,6 +8,10 @@ from .utilities import (
     strip_all_comments,
 )
 
+from ..global_utils import (
+    load_localized_help_text as localize_help_text,
+    class_name_to_node_name as def_node_name,
+)
 
 log = logging.getLogger(__name__)
 
@@ -15,7 +19,9 @@ log = logging.getLogger(__name__)
 class SimplePromptBuilder:
     CATEGORY = "darkilNodes/text"
     FUNCTION = "build_prompt"
+
     
+    DEFAULT_NODE_NAME = "PromptBuilder"    
     HELP_TEXT = """Prompt Writing Help:
 - Placeholders: `{{NAME:TYPE:VALUE:DEFAULT:USE_INPUT}}` define dynamic values.
    * TYPE can be STRING, INT, FLOAT, COMBO, SLIDER, KNOB.
@@ -76,6 +82,7 @@ All other text remains unchanged in the compiled output."""
             },
             "hidden": {
                 "cachedValues": ("STRING", {"default": "{}"}),
+                "COMFY_LOCALE_SETTING": ("STRING", {})
             }
         }
 
@@ -313,4 +320,10 @@ All other text remains unchanged in the compiled output."""
         compiled_prompt = self._process_directives(compiled_prompt)
         extra_compiled = self._process_directives(extra_compiled)
 
-        return (compiled_prompt, extra_compiled, self.HELP_TEXT,)
+        _help_text = localize_help_text(
+            def_node_name(SimplePromptBuilder),
+            default=SimplePromptBuilder.HELP_TEXT,
+            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
+        )
+
+        return (compiled_prompt, extra_compiled, _help_text,)

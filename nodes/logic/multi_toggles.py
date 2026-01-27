@@ -2,6 +2,11 @@ import json
 import logging
 from typing import Any, Dict, List, Tuple
 
+from ..global_utils import (
+    load_localized_help_text as localize_help_text,
+    class_name_to_node_name as def_node_name,
+)
+
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +21,7 @@ class MultiToggles:
                 "selected": ("STRING", {"default": "[]"}),
                 "last_word": ("STRING", {"default": ""}),
                 "delimiter": ("STRING", {"default": ", "}),
+                "COMFY_LOCALE_SETTING": ("STRING", {})
             }
         }
 
@@ -64,5 +70,11 @@ UI configuration (via node PROPERTIES):
             selected_string = delimiter.join(selected_list[:len(selected_list)-1]) + f" {last_word} {selected_list[-1]}"
         else:
             selected_string = delimiter.join(selected_list)
+        
+        _help_text = localize_help_text(
+            def_node_name(MultiToggles),
+            default=MultiToggles.HELP_TEXT,
+            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
+        )
             
-        return (selected_list, selected_string, self.HELP_TEXT,)
+        return (selected_list, selected_string, _help_text,)

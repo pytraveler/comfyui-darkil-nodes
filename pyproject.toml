@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-darkil-nodes"
-version = "0.1.2"
+version = "0.1.3"
 description = "Various custom nodes for improved usability."
 readme = "README.md"
 license = { file = "LICENSE" }

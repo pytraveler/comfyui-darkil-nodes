@@ -1,5 +1,5 @@
 import { app } from "../../scripts/app.js";
-
+import { setLocaleSetting } from "./utils.js";
 
 const NODE_ID = "darkilMultiToggles";
 const DEF_LAST_WORD = "";
@@ -131,6 +131,7 @@ app.registerExtension({
                 _updateWidgets(node, node.properties?.text_for_toggles, hidden_widget);
                 hidden_w_last_word.value = _get_last_word_prop(node);
                 hidden_w_delimiter.value = _get_delimiter_prop(node);
+                setLocaleSetting(node);
             });
             
             

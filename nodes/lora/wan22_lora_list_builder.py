@@ -15,6 +15,10 @@ from itertools import compress
 
 import folder_paths  # ComfyUI imports
 
+from ..global_utils import (
+    load_localized_help_text as localize_help_text,
+    class_name_to_node_name as def_node_name,
+)
 
 log = logging.getLogger(__name__)
 
@@ -26,14 +30,14 @@ class Wan22VideoLoraListBuilder:
         return {
             "required": {
                 "input_list": ("STRING", {"forceInput": True, "default": ""},),
-                "default_lora_strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.05},),
+                "default_lora_strength": ("FLOAT", {"default": 1, "min": -10, "max": 10, "step": 0.05, "precision": 2},),
             },
             "optional": {
                 "prev_low": ("WANVIDLORA", {"default": None}),
                 "prev_high": ("WANVIDLORA", {"default": None}),
                 "blocks": ("SELECTEDBLOCKS", {"default": None}),
                 "low_mem_load": ("BOOLEAN", {"default": False}),
-                "merge_loras": ("BOOLEAN", {"default": True}),
+                "merge_loras": ("BOOLEAN", {"default": True})
             }
         }
 
@@ -218,5 +222,11 @@ The third output is this help string for reference."""
 
         low_res = _extend(prev_low, low_res)
         high_res = _extend(prev_high, high_res)
+        _help_text = localize_help_text(
+            def_node_name(Wan22VideoLoraListBuilder),
+            default=Wan22VideoLoraListBuilder.HELP_TEXT,
+            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
+        )
 
-        return (low_res, high_res, self.HELP_TEXT,)
+
+        return (low_res, high_res, _help_text,)

@@ -12,6 +12,11 @@ from .utilities import (
     strip_quotes,
 )
 
+from ..global_utils import (
+    load_localized_help_text as localize_help_text,
+    class_name_to_node_name as def_node_name,
+)
+
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +33,9 @@ class TextVariableBuilder:
             },
             "optional": {
                 "INPUT_VAR": ("BOOLEAN,INT,FLOAT,STRING,COMBO", {"default": ""})
+            },
+            "hidden": {
+                "COMFY_LOCALE_SETTING": ("STRING", {})
             }
         }
 
@@ -47,9 +55,9 @@ Inputs:
    - **INPUT_VAR** (optional, various types): Define additional variables in the format `name=value` per line.
 
 Placeholders in `var_value`:
-   - `{{variable}}` – replace with the value of a defined variable.
-   - `{{default}}` or `{{}}` – insert the default single-line value from INPUT_VAR.
-   - `{{DATE}}` / `{{TIME}}` – current date (YYYYMMDD) or time (HHMMSS).
+    - `{{variable}}` – replace with the value of a defined variable.
+    - `{{default}}` or `{{}}` – insert the default single-line value from INPUT_VAR.
+    - `{{DATE}}` / `{{TIME}}` – current date (YYYYMMDD) or time (HHMMSS).
    - Conditional: `{{IF:cond:true:false}}` or `{{IFNOT:cond:true:false}}` where *cond* can be a boolean, variable name, or expression.
    - Fallback: `{{var??\"fallback\"}}` – use *var* if defined else the fallback literal.
 
@@ -175,11 +183,17 @@ You can also use random variants in INPUT_VAR values separated by `|`, e.g. `gre
 
         final_value = "" if not switch else replace_placeholders(cleaned_template, [])
 
+        _help_text = localize_help_text(
+            def_node_name(TextVariableBuilder),
+            default=TextVariableBuilder.HELP_TEXT,
+            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
+        )
+
         # Respect out_val_by_switch flag
         if out_val_by_switch is True and switch is False:
-            return ("", self.HELP_TEXT,)
+            return ("", _help_text,)
 
         # Return either “name = value” or just the value
         if var_name.strip():
-            return (f"{var_name.strip()} = {final_value}", self.HELP_TEXT,)
-        return (final_value, self.HELP_TEXT,)
+            return (f"{var_name.strip()} = {final_value}", _help_text,)
+        return (final_value, _help_text,)

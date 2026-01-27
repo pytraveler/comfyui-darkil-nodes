@@ -2,6 +2,11 @@ import logging
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
+from ..global_utils import (
+    load_localized_help_text as localize_help_text,
+    class_name_to_node_name as def_node_name,
+)
+
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +32,9 @@ class FilesList:
                 "sub_foldres": ("BOOLEAN", {"default": False}),     
                 "keep_extensions": ("BOOLEAN", {"default": True}),  
                 "keep_full_path": ("BOOLEAN", {"default": False}),  
+            },
+            "hidden": {
+                "COMFY_LOCALE_SETTING": ("STRING", {})
             }
         }
 
@@ -78,6 +86,20 @@ The node returns an empty list if the folder does not exist or contains no match
             ext = f".{ext}"
         return f"*{ext}"
 
+    @classmethod
+    def IS_CHANGED(
+        cls, 
+        folder_path: str,
+        files_extension: str,
+        sort_by: str,
+        sub_foldres: bool,
+        keep_extensions: bool,
+        keep_full_path: bool,
+        **kwargs
+    ):
+        # recalc node
+        return float("NaN")
+
     # Main logic
     def process(
         self,
@@ -90,13 +112,19 @@ The node returns an empty list if the folder does not exist or contains no match
         **kwargs
     ) -> Tuple[List[str], str, str, str, int, str]:
 
+        _help_text = localize_help_text(
+            def_node_name(FilesList),
+            default=FilesList.HELP_TEXT,
+            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
+        )
+
         if not folder_path:
-            return [], "", "", "", 0, self.HELP_TEXT
+            return [], "", "", "", 0, _help_text
 
         base_dir = Path(folder_path).expanduser().resolve()
         if not base_dir.is_dir():
             # Gracefully handle wrong paths – the UI will just see an empty list.
-            return [], "", "", "", 0, self.HELP_TEXT
+            return [], "", "", "", 0, _help_text
 
         pattern = self._make_pattern(files_extension)
 
@@ -107,7 +135,7 @@ The node returns an empty list if the folder does not exist or contains no match
                 raw_candidates = list(base_dir.glob(pattern))
         except Exception as exc:                     # pragma: no cover – safety net
             log.error(f"[darkilNodes.FilesList] glob error: {exc}")
-            return [], "", "", "", 0, self.HELP_TEXT
+            return [], "", "", "", 0, _help_text
 
         # Keep only real files (skip directories, symlinks that point to dirs, etc.)
         candidates = [p for p in raw_candidates if p.is_file()]
@@ -160,19 +188,4 @@ The node returns an empty list if the folder does not exist or contains no match
         first_filename = found_list[0] if found_list else ""
         last_filename = found_list[-1] if found_list else ""
 
-        return found_list, found_as_text, last_filename, first_filename, len(found_list), self.HELP_TEXT
-
-
-    @classmethod
-    def IS_CHANGED(
-        cls, 
-        folder_path: str,
-        files_extension: str,
-        sort_by: str,
-        sub_foldres: bool,
-        keep_extensions: bool,
-        keep_full_path: bool,
-        **kwargs
-    ):
-        # recalc node
-        return float("NaN")
+        return found_list, found_as_text, last_filename, first_filename, len(found_list), _help_text
