@@ -114,6 +114,20 @@
 - **Свойства конфигурации интерфейса**:
   - `text_for_combo`: Список элементов (разделенные точкой с запятой или вертикальной чертой)
 
+#### 3. Загрузить модель диффузии позже [darkilNodes]
+![Загрузить модель диффузии позже](docs/images/node_diff_model_later.png)
+- **Категория**: darkilNodes/logic
+- **Описание**: Загружает в рабочем процессе модель диффузии в память позже.
+- **Функции**:
+  - Позволяет подключить загрузчик модели по цепочке, в схеме
+  - Позволяет очистить кэш модели
+  - Позволяет выгружать модели из памяти
+- **Свойства конфигурации интерфейса**:
+  - `any_trigger`: любой тип в качестве триггера для загрузки модели диффузии
+  - `empty_cache`: очищает кэш ComfyUI, если включено
+  - `gc_collect`: <python> gc.collect()
+  - `unload_models`: выгружает ранее загруженные модели в память, если включено
+
 ### Узлы LoRA
 
 #### 1. Список LoRA для WanVideoWrapper от Kijai [darkilNodes]
@@ -166,7 +180,7 @@
 1. Склонируйте или скачайте этот репозиторий в папку `custom_nodes` ComfyUI:
    ```
    cd ComfyUI/custom_nodes
-   git clone https://github.com/yourusername/comfyui-custom-nodes.git
+   git clone https://github.com/pytraveler/comfyui-darkil-nodes.git
    ```
 
 2. Установите любые необходимые зависимости (если применимо):
@@ -178,16 +192,9 @@
 
 ## Примеры использования
 
-### Пример обработки текста
-```
-TextIsEmpty → Boolean Switch
-TextNotEmpty → Boolean Switch  
-TextLinesCount → Integer Display
-```
-
 ### Пример управления LoRA
 ```
-Wan22VideoLoraListBuilder → WanVideoWrapper (Kijai)
+Wan22VideoLoraListBuilder → WanVideoSetLoRAs (Kijai)
 ```
 
 ## Лицензия

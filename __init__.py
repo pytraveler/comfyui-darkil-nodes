@@ -11,6 +11,7 @@ from .nodes.text.simple import (
 
 from .nodes.logic.multi_toggles import MultiToggles
 from .nodes.logic.custom_combo import CustomCombo
+from .nodes.logic.model_load_later import UNETLoaderLater
 
 from .nodes.lora.wan22_lora_list_builder import Wan22VideoLoraListBuilder
 
@@ -29,6 +30,7 @@ NODE_CLASS_MAPPINGS = {
     # LOGIC
     as_node_name(MultiToggles): MultiToggles,
     as_node_name(CustomCombo): CustomCombo,
+    as_node_name(UNETLoaderLater): UNETLoaderLater,
     
     # LORA
     as_node_name(Wan22VideoLoraListBuilder): Wan22VideoLoraListBuilder,
@@ -50,6 +52,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # LOGIC
     as_node_name(MultiToggles): "Multi toggles [darkilNodes]",
     as_node_name(CustomCombo): "Custom combo box [darkilNodes]",
+    as_node_name(UNETLoaderLater): "Diffusion Model Load Later [darkilNodes]",
 
     # LORA
     as_node_name(Wan22VideoLoraListBuilder): "LoRA list for WanVideoWrapper by Kijai [darkilNodes]",

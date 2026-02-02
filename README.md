@@ -115,6 +115,20 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
 - **UI Configuration Properties**:
   - `text_for_combo`: List of items (semicolon or pipe separated)
 
+#### 3. Diffusion model loader later [darkilNodes]
+![Diffusion model loader later](docs/images/node_diff_model_later.png)
+- **Category**: darkilNodes/logic
+- **Description**: Loads the diffusion model into memory later.
+- **Features**:
+  - Allows you to connect the loader of the model along the chain, in the scheme
+  - Allows you to clear the model cache
+  - Allows you to unload models from memory
+- **UI Configuration Properties**:
+  - `any_trigger`: any type as a trigger for loading the diffusion model
+  - `empty_cache`: clears the ComfyUI cache if enabled
+  - `gc_collect`: <python> gc.collect()
+  - `unload_models`: unloads previously loaded models into memory if enabled
+
 ### LoRA Nodes
 
 #### 1. LoRA list for WanVideoWrapper by Kijai [darkilNodes]
@@ -167,28 +181,16 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
 1. Clone or download this repository into your ComfyUI custom_nodes folder:
    ```
    cd ComfyUI/custom_nodes
-   git clone https://github.com/yourusername/comfyui-custom-nodes.git
+   git clone https://github.com/pytraveler/comfyui-darkil-nodes.git
    ```
 
-2. Install any required dependencies (if applicable):
-   ```
-   pip install -r requirements.txt
-   ```
-
-3. Restart ComfyUI to load the new nodes.
+2. Restart ComfyUI to load the new nodes.
 
 ## Usage Examples
 
-### Text Processing Example
-```
-TextIsEmpty → Boolean Switch
-TextNotEmpty → Boolean Switch  
-TextLinesCount → Integer Display
-```
-
 ### LoRA Management Example
 ```
-Wan22VideoLoraListBuilder → WanVideoWrapper (Kijai)
+Wan22VideoLoraListBuilder → WanVideoSetLoRAs (Kijai)
 ```
 
 ## License
