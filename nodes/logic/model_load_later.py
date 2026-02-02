@@ -27,7 +27,6 @@ class UNETLoaderLater:
     DEFAULT_NODE_NAME = "DiffusionModelLoaderLater" 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet_later"
-    RETURN_NAMES = ("as_list", "as_string", "❓help",)
     CATEGORY = "darkilNodes/logic"
     OUTPUT_NODE = False  
 
