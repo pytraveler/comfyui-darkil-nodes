@@ -129,6 +129,39 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - `gc_collect`: <python> gc.collect()
   - `unload_models`: unloads previously loaded models into memory if enabled
 
+#### 4. Multi Set [darkilNodes]
+![Multi Set](docs/images/node_setget.png)
+- **Category**: darkilNodes/logic
+- **Description**: Creates a named *group* that dynamically generates matching input and output slots.
+- **Features**:
+  - Define a group name via widget; the name is kept unique across the graph.
+  - When an input slot is connected, the node automatically creates a corresponding output slot with matching type and a generated name (`<type>_<index>`).
+  - Supports a wildcard placeholder pair that is always kept free for further connections; extra placeholders are removed automatically.
+  - Works with both native Multi Set nodes and KJNodes `SetNode` (compatibility mode).
+  - Propagates color changes to linked Get nodes.
+  - Virtual node – does not affect prompt serialization.
+
+#### 5. Multi Get [darkilNodes]
+- **Category**: darkilNodes/logic
+- **Description**: Reads a *group* created by a Multi Set node and generates matching output slots dynamically.
+- **Features**:
+  - Group selector combo box populated with all existing Multi Set groups in the current graph.
+  - Automatically rebuilds its outputs to mirror the inputs of the associated Multi Set node (type, order, naming).
+  - Preserves existing connections when the group changes or when slots are added/removed.
+  - Validates links to avoid type mismatches.
+  - Synchronizes node colour with its corresponding Multi Set node.
+
+#### 6. Multi Get AIO [darkilNodes]
+- **Category**: darkilNodes/logic
+- **Description**: An “All‑In‑One” version of Multi Get that can pull data from multiple groups at once.
+- **Features**:
+  - Widget to set the number of groups (1–100) and a combo box for each group to select an existing Multi Set group.
+  - Generates output slots for every input of every selected group, naming them as `<type>_<index> [ <group_index> ]`.
+  - Maintains connections across re‑configuration by mapping old outputs to new ones based on group name and original input index.
+  - Supports colour inheritance from each source Multi Set node.
+  - Validates and cleans up broken links automatically.
+  - Virtual node – does not affect prompt serialization.
+
 ### LoRA Nodes
 
 #### 1. LoRA list for WanVideoWrapper by Kijai [darkilNodes]
