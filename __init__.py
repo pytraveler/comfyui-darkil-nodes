@@ -1,5 +1,6 @@
 from .nodes.global_utils import class_name_to_node_name as as_node_name
 
+from .nodes.text.strings_joiner import StringsJoiner
 from .nodes.text.variable_builder import TextVariableBuilder
 from .nodes.text.advanced_variable_builder import AdvancedVariableBuilder
 from .nodes.text.prompt_builder import SimplePromptBuilder
@@ -9,14 +10,16 @@ from .nodes.text.simple import (
     TextLinesCount,
 )
 
+
 from .nodes.logic.multi_toggles import MultiToggles
 from .nodes.logic.custom_combo import CustomCombo
+from .nodes.logic.constant_setter import ConstantSetter
 from .nodes.logic.model_load_later import (
-    UNETLoaderLater, 
-    CLIPLoaderLater, 
+    UNETLoaderLater,
+    CLIPLoaderLater,
     DualCLIPLoaderLater,
     VAELoaderLater,
-) 
+)
 
 from .nodes.lora.wan22_lora_list_builder import Wan22VideoLoraListBuilder
 
@@ -25,6 +28,7 @@ from .nodes.files.files_list import FilesList
 
 NODE_CLASS_MAPPINGS = {
     # TEXTS
+    as_node_name(StringsJoiner): StringsJoiner,
     as_node_name(TextVariableBuilder): TextVariableBuilder,
     as_node_name(AdvancedVariableBuilder): AdvancedVariableBuilder,
     as_node_name(SimplePromptBuilder): SimplePromptBuilder,
@@ -35,6 +39,7 @@ NODE_CLASS_MAPPINGS = {
     # LOGIC
     as_node_name(MultiToggles): MultiToggles,
     as_node_name(CustomCombo): CustomCombo,
+    as_node_name(ConstantSetter): ConstantSetter,
     as_node_name(UNETLoaderLater): UNETLoaderLater,
     as_node_name(CLIPLoaderLater): CLIPLoaderLater,
     as_node_name(DualCLIPLoaderLater): DualCLIPLoaderLater,
@@ -50,6 +55,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # TEXTS
+    as_node_name(StringsJoiner): "Strings Joiner [darkilNodes]",
     as_node_name(TextVariableBuilder): "Variable builder [darkilNodes]",
     as_node_name(AdvancedVariableBuilder): "Advanced variable builder [darkilNodes]",
     as_node_name(SimplePromptBuilder): "Dynamic prompt builder [darkilNodes]",
@@ -60,6 +66,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # LOGIC
     as_node_name(MultiToggles): "Multi toggles [darkilNodes]",
     as_node_name(CustomCombo): "Custom combo box [darkilNodes]",
+    as_node_name(ConstantSetter): "Constant Setter [darkilNodes]",
     as_node_name(UNETLoaderLater): "Diffusion Model Load Later [darkilNodes]",
     as_node_name(CLIPLoaderLater): "CLIP Load Later [darkilNodes]",
     as_node_name(DualCLIPLoaderLater): "DualCLIP Load Later [darkilNodes]",

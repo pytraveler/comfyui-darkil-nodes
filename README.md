@@ -85,6 +85,20 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
 - **Outputs**:
   - `INT`: Number of lines in the text
 
+#### 7. Strings Joiner [darkilNodes]
+![Strings Joiner](docs/images/node_str_joiner.png)
+- **Category**: darkilNodes/text
+- **Description**: Joins multiple text inputs with a specified separator.
+- **Features**:
+  - Supports dynamic number of text inputs via DYNAMIC_* slots
+  - Escape sequence support (\n for newline, \t for tab)
+  - Filters empty/None values before joining
+- **Inputs**:
+  - `joiner`: Separator string used to join texts (supports escape sequences)
+  - `DYNAMIC_*`: Dynamic text inputs to join
+- **Outputs**:
+  - `joined_text`: Combined text with joiner as separator
+
 ### Logic Nodes
 
 #### 1. Multi toggles [darkilNodes]
@@ -161,6 +175,24 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - Supports colour inheritance from each source Multi Set node.
   - Validates and cleans up broken links automatically.
   - Virtual node – does not affect prompt serialization.
+
+#### 7. Constant setter [darkilNodes]
+![Constant setter 1](docs/images/node_constant_setter_1.png)
+![Constant setter 2](docs/images/node_constant_setter_2.png)
+![Constant setter 3](docs/images/node_constant_setter_3.png)
+- **Category**: darkilNodes/logic
+- **Description**: Sets a constant value of various types for use in workflows.
+- **Features**:
+  - Supports multiple data types: STRING, INT, FLOAT, BOOLEAN, COMBO
+  - Slider/Knob controls with configurable min/max ranges
+  - Type conversion from input values
+  - Virtual node – does not affect prompt serialization
+- **UI Configuration Properties**:
+  - `const_type`: Data type (STRING, INT, FLOAT (FLOAT2-FLOAT5), BOOLEAN, COMBO, SLIDER (SLIDER2-SLIDER5), KNOB (KNOB2-KNOB5))
+  - `default_value`: Default constant value
+  - `minimum`, `maximum`: Range bounds for numeric types
+  - `values`: Semicolon-separated list for COMBO type
+  - `input_enable`: Enable input slot for value conversion
 
 ### LoRA Nodes
 

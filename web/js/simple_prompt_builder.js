@@ -319,14 +319,18 @@ app.registerExtension({
             
             // Store original size for toggling visibility
             const origPromptWidgetComputeSize = promptWidget.computeSize;
+            let savedNodeHeightDelta = 0;
             
             function turnPromptWidgetVisible(v) {
                 if (!stringToBoolean(v) && !promptWidget.hidden) {
                     promptWidget.hidden = true;
                     promptWidget.computeSize = () => [0, -4];
+                    savedNodeHeightDelta = _this_node.size[1] - (promptWidget.computedHeight || _this_node.size[1]); 
+                    _this_node.size = [_this_node.size[0], _this_node.size[1] - savedNodeHeightDelta];
                 } else if (stringToBoolean(v) && promptWidget.hidden) {
                     promptWidget.hidden = false;
                     promptWidget.computeSize = origPromptWidgetComputeSize;
+                    _this_node.size = [_this_node.size[0], _this_node.size[1] + savedNodeHeightDelta];
                 }
             }
             

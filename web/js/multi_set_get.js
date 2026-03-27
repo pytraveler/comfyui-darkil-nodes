@@ -1,11 +1,7 @@
-//based on Kijai's SetGet nodes: https://github.com/kijai/ComfyUI-KJNodes
-
 import { app } from "../../scripts/app.js";
 import { brighten } from "./colors.js"
 
-const LGraphNode = LiteGraph.LGraphNode;
-
-// Node type identifiers
+// Node type identifiers - must be defined BEFORE cross-graph functions that use them
 const DEFINE_SET_DISPLAY_NAME = "Multi Set [darkilNodes]";
 const DEFINE_GET_DISPLAY_NAME = "Multi Get [darkilNodes]";
 const DEFINE_GET_AIO_DISPLAY_NAME = "Multi Get AIO [darkilNodes]";
@@ -23,6 +19,8 @@ const DEFINE_GET_NODE_TYPES = [
     DEFINE_GET_AIO_NODE_TYPE,
 ];
 
+const LGraphNode = LiteGraph.LGraphNode;
+
 // Settings helper (KJ settings)
 let disablePrefix = false;
 try {
@@ -39,6 +37,187 @@ function showAlert(message) {
         life: 8000,
     });
 }
+
+// Paste rename map - coordinates rename between Set and Get nodes during paste operations
+const _pasteRenameMap = new Map();
+
+// ============================================================
+// Cross-graph traversal utilities for Subgraph support.
+// Set nodes propagate downward: a Set in parent graph is visible
+// to all descendant subgraphs.
+// Get nodes look upward: a Get searches its own graph first,
+// then parent, then grandparent, etc.
+// Duplicate names are allowed across unrelated (sibling) subgraphs.
+// ============================================================
+
+function findRootGraph(graph) {
+    if (!graph) return null;
+    return graph.rootGraph || graph;
+}
+
+// Find which SubgraphNode in parentGraph wraps the given subgraph
+function findSubgraphNodeFor(parentGraph, innerNode) {
+    if (!parentGraph?._nodes || !innerNode?.graph) return null;
+    for (const n of parentGraph._nodes) {
+        if (n.subgraph && n.subgraph === innerNode.graph) return n;
+    }
+    return null;
+}
+
+// Walk from a subgraph up to root, returning [graph, parent, grandparent, ..., root]
+function getGraphAncestors(graph) {
+    if (!graph) return [];
+    const root = findRootGraph(graph);
+    if (!root || graph === root) return [root];
+
+    const chain = [graph];
+    const visited = new Set([graph]);
+    let current = graph;
+
+    while (current !== root) {
+        let found = false;
+        // Search root nodes
+        for (const n of root._nodes) {
+            if (n.subgraph === current) {
+                chain.push(root);
+                current = root;
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
+        
+        // Search sibling subgraphs (for nested subgraphs)
+        const subgraphs = root._subgraphs || root.subgraphs;
+        if (subgraphs) {
+            for (const sg of subgraphs.values()) {
+                if (sg === current || !sg._nodes) continue;
+                for (const n of sg._nodes) {
+                    if (n.subgraph === current) {
+                        if (visited.has(sg)) { found = false; break; }
+                        visited.add(sg);
+                        chain.push(sg);
+                        current = sg;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+        }
+        if (!found) {
+            // Can't find parent, add root as fallback
+            if (!chain.includes(root)) chain.push(root);
+            break;
+        }
+    }
+    return chain;
+}
+
+// Get all descendant subgraphs of a graph (children, grandchildren, etc.)
+function getGraphDescendants(graph, _visited) {
+    if (!graph?._nodes) return [];
+    const visited = _visited || new Set();
+    if (visited.has(graph)) return [];
+    visited.add(graph);
+    const descendants = [];
+    for (const n of graph._nodes) {
+        if (n.subgraph && !visited.has(n.subgraph)) {
+            descendants.push(n.subgraph);
+            descendants.push(...getGraphDescendants(n.subgraph, visited));
+        }
+    }
+    return descendants;
+}
+
+// Collect nodes of a type from specific graphs
+function collectNodesOfType(graphs, type) {
+    const results = [];
+    for (const g of graphs) {
+        if (!g?._nodes) continue;
+        for (const node of g._nodes) {
+            if (node.type === type) results.push({ node, graph: g });
+        }
+    }
+    return results;
+}
+
+// Find all nodes of type across ALL graphs (root + all subgraphs)
+function findAllNodesOfType(graph, type) {
+    const root = findRootGraph(graph);
+    if (!root) return [];
+    const allGraphs = [root];
+    const subgraphs = root._subgraphs || root.subgraphs;
+    if (subgraphs) {
+        for (const sg of subgraphs.values()) allGraphs.push(sg);
+    }
+    return collectNodesOfType(allGraphs, type);
+}
+
+// Scoped setter lookup: search current graph, then ancestors (look up).
+// Returns {node, graph} or null
+function darkilFindSetterByName(graph, name) {
+    if (!name) return null;
+    
+    // Extract clean name - strip ",local" or ",parent" suffix if present
+    const cleanName = String(name).replace(/,(local|parent)$/, '');
+    
+    for (const g of getGraphAncestors(graph)) {
+        if (!g?._nodes) continue;
+        for (const node of g._nodes) {
+            if ((DEFINE_SET_NODE_TYPES.includes(node.type) || node.type === DEFINE_SET_NODE_TYPE)
+                && node.widgets[0].value === cleanName) {
+                return { node, graph: g };
+            }
+        }
+    }
+    return null;
+}
+
+// Scoped getter lookup: search current graph + descendants (propagate down).
+// Returns array of {node, graph}
+function darkilFindGettersByName(graph, name) {
+    if (!name) return [];
+    const graphs = [graph, ...getGraphDescendants(graph)];
+    const results = [];
+    for (const g of graphs) {
+        if (!g?._nodes) continue;
+        for (const node of g._nodes) {
+            if (DEFINE_GET_NODE_TYPES.includes(node.type)
+                && node.widgets?.filter(w => w.type?.toLowerCase() === "combo").map(w => w.value).includes(name)
+                && name !== "") {
+                results.push({ node, graph: g });
+            }
+        }
+    }
+    return results;
+}
+
+// Get all visible SetNode names for a GetNode's combo dropdown.
+// Shows names from current graph + ancestors (what's in scope).
+let _darkilSetNameSourceMap = new Map();
+
+function darkilGetVisibleSetNames(graph) {
+    const sourceMap = new Map();
+    const ancestors = getGraphAncestors(graph);
+    for (const g of ancestors) {
+        if (!g?._nodes) continue;
+        for (const node of g._nodes) {
+            if (DEFINE_SET_NODE_TYPES.includes(node.type) || node.type === DEFINE_SET_NODE_TYPE) {
+                const name = node.widgets[0]?.value;
+                if (!name) continue;
+                if (!sourceMap.has(name)) {
+                    sourceMap.set(name, g === graph ? "local" : "parent");
+                }
+            }
+        }
+    }
+    _darkilSetNameSourceMap = sourceMap;
+    // Return array of names only (not pairs), sorted alphabetically
+    const names = [...sourceMap.keys()].sort((a, b) => a.localeCompare(b));
+    return names;
+}
+
 
 // darkilMultiSetNode – defines a *group* and creates dynamic slots                
 class darkilMultiSetNode extends LGraphNode {
@@ -128,8 +307,8 @@ class darkilMultiSetNode extends LGraphNode {
             //On Disconnect
             if (!isChangeConnect) {
                 if (isInputChanged) {
-                    inp.type = "*";
-                    inp.name = "*";
+                    // inp.type = "*";
+                    // inp.name = "*";
                     outp.type = "*";
                     outp.name = "*";
                 } 
@@ -152,8 +331,11 @@ class darkilMultiSetNode extends LGraphNode {
                             }
                             
                             this.validateName(graph);
-                            inp.type = resolvedType;
-                            inp.name = baseName;
+                            if (resolvedType !== "*") {
+                                inp.type = resolvedType;
+                                inp.name = baseName;
+                            }
+                            
 
                             if (this.outputs?.[slot]?.type !== inp.type) {
                                 this.outputs[slot].type = inp.type;
@@ -216,21 +398,27 @@ class darkilMultiSetNode extends LGraphNode {
         this.update();
     }
 
-    // Ensure group name uniqueness among Get nodes
+    // Ensure group name uniqueness among Get nodes - search ancestors for duplicates
     validateName(graph) {
         let widgetValue = this.currentWidgetValue();
         if (!widgetValue || !this.isInitialized) return;
 
         const existingValues = new Set();
-        graph._nodes.forEach((otherNode) => {
-            if (
-                otherNode !== this &&
-                DEFINE_SET_NODE_TYPES.includes(otherNode.type)
-            ) {
-                const val = otherNode.widgets?.[0]?.value;
-                if (val) existingValues.add(val);
-            }
-        });
+
+        // Search in all ancestor graphs (current + parent graphs)
+        const ancestors = getGraphAncestors(graph);
+        for (const g of ancestors) {
+            if (!g?._nodes) continue;
+            g._nodes.forEach((otherNode) => {
+                if (
+                    otherNode !== this &&
+                    (DEFINE_SET_NODE_TYPES.includes(otherNode.type) || otherNode.type === DEFINE_SET_NODE_TYPE)
+                ) {
+                    const val = otherNode.widgets?.[0]?.value;
+                    if (val) existingValues.add(val);
+                }
+            });
+        }
 
         let tries = 0;
         while (existingValues.has(widgetValue)) {
@@ -242,24 +430,59 @@ class darkilMultiSetNode extends LGraphNode {
         this.update?.();
     }
 
-    onAdded(graph) {
-        const node = this;
-        requestAnimationFrame(() => {
-            node.validateName(graph);
-        })
+    onAdded() {
+        this._justAdded = true;
     }
 
-    // Find Get nodes that reference this group
+    onConfigure() {
+        // Only run paste logic when actually pasting, not during workflow load
+        if (this._justAdded && this.graph && !app.configuringGraph) {
+            const oldName = this.widgets[0].value;
+            this.validateName(this.graph, true);
+            this._justAdded = false;
+            const newName = this.widgets[0].value;
+            if (newName !== oldName) {
+                _pasteRenameMap.set(oldName, newName);
+                // Clear the map after this paste cycle
+                setTimeout(() => _pasteRenameMap.delete(oldName), 0);
+            }
+            // Reset type and color on paste — nothing is connected yet
+            if (this.inputs[0]?.link == null) {
+                this.inputs[0].type = '*';
+                this.inputs[0].name = '*';
+                this.outputs[0].type = '*';
+                this.outputs[0].name = '*';
+                this.color = null;
+                this.bgcolor = null;
+            }
+        }
+        this._justAdded = false;
+    }
+
+    // Find Get nodes that reference this group - search descendants for getters
     findGetters(graph, checkForPreviousName) {
         const name = checkForPreviousName
             ? this.properties.previousName
             : this.widgets[0].value;
-        return graph._nodes.filter(
-            (otherNode) =>
-                DEFINE_GET_NODE_TYPES.includes(otherNode.type) &&
-                otherNode.widgets?.filter(w => w.type?.toLowerCase() === "combo").map(w => w.value).includes(name) &&
-                name !== ""
-        );
+        
+        if (!name) return [];
+        
+        // Search in current graph + all descendant subgraphs
+        const graphs = [graph, ...getGraphDescendants(graph)];
+        const results = [];
+        
+        for (const g of graphs) {
+            if (!g?._nodes) continue;
+            for (const otherNode of g._nodes) {
+                if (DEFINE_GET_NODE_TYPES.includes(otherNode.type) &&
+                    otherNode.widgets?.filter(w => w.type?.toLowerCase() === "combo").map(w => w.value).includes(name) &&
+                    name !== "") {
+                    results.push(otherNode);
+                }
+            }
+        }
+        
+        return results;
     }
 
     // Update all Get nodes after a connection change
@@ -270,7 +493,11 @@ class darkilMultiSetNode extends LGraphNode {
         getters.forEach((getter) => {
             let inpIdx = 0;
             for (const inp of this.inputs) {
-                getter.setType(inp.type, inpIdx++);
+                // Skip wildcard types - don't propagate "*" to Get nodes
+                if (inp.type !== "*") {
+                    getter.setType(inp.type, inpIdx);
+                }
+                inpIdx++;
             }
         });
 
@@ -342,9 +569,8 @@ class darkilMultiGetNode extends LGraphNode {
             },
             {
                 values: () => {
-                    const setterNodes = node.graph._nodes.filter(
-                        (otherNode) => DEFINE_SET_NODE_TYPES.includes(otherNode.type) || otherNode.type == DEFINE_SET_NODE_TYPE);
-                    return setterNodes.map((otherNode) => otherNode.widgets[0].value).sort();
+                    // Show names from current graph + all ancestors (what's visible from subgraph)
+                    return darkilGetVisibleSetNames(node.graph);
                 },
             }
         );
@@ -354,7 +580,7 @@ class darkilMultiGetNode extends LGraphNode {
         node.isVirtualNode = true;
     }
 
-    сlone() {
+    clone() {
         const cloned = super.clone?.apply(this, arguments);
         if (!cloned) return null;
 
@@ -378,7 +604,7 @@ class darkilMultiGetNode extends LGraphNode {
     }
 
     getOutputName(outputType, inputIndex, groupName="") {
-        return `${outputType || groupName}_${inputIndex}`
+        return outputType === "*" ? `ANY_${inputIndex}` : `${outputType || groupName}_${inputIndex}`
     }
 
     // Re‑build all output slots based on current graph state
@@ -393,17 +619,17 @@ class darkilMultiGetNode extends LGraphNode {
         }
 
         const group = this.widgets[0].value;
-        const setter = this.graph._nodes.find(
-            otherNode => (
-                DEFINE_SET_NODE_TYPES.includes(otherNode.type) || otherNode.type === DEFINE_SET_NODE_TYPE
-            ) && otherNode.widgets[0].value === group && group !== "");
+        
+        // Search in current graph first, then ancestors
+        const setterResult = darkilFindSetterByName(this.graph, group);
+        const setter = setterResult?.node;
 
         if (setter) {
             let relevantInputs = [];
 
             if (setter.type === DEFINE_SET_NODE_TYPE) {
-                // Filter out placeholder slots
-                relevantInputs = setter.inputs.filter(i => i.type !== "*" && i.name !== "*");
+                // Include all inputs including wildcard "*" to preserve existing connections
+                relevantInputs = [...setter.inputs];
             } else if (setter.type === DEFINE_KJ_SET_NODE_TYPE) {
                 // Single‑slot node – use its first input slot
                 relevantInputs = [setter.inputs[0]];
@@ -411,6 +637,10 @@ class darkilMultiGetNode extends LGraphNode {
 
             let idx = 1;
             for (const inp of relevantInputs) {
+                // Skip placeholder slots that are not connected and have "*" type
+                if (inp.type === "*" && inp.name === "*" && !inp.link) {
+                    continue;
+                }
                 const outName = this.getOutputName(inp?.type, idx, this.groupName);
                 const outType = inp?.type || "*";
                 desired.push({ name: outName, type: outType });
@@ -434,7 +664,7 @@ class darkilMultiGetNode extends LGraphNode {
                 if (!info || !info.links?.length) return;
                 if (idx >= node.outputs.length) return;         
                 const out = node.outputs[idx];
-                if ((out.links && out.links.length) || out.type !== info.type) return;
+                // if ((out.links && out.links.length) || (out.type !== info.type && out.type !== "*")) return;
                 for (const { targetNodeId, targetSlot } of info.links) {
                     const targetNode = node.graph.getNodeById?.(targetNodeId)
                     if (!targetNode) continue; 
@@ -520,34 +750,56 @@ class darkilMultiGetNode extends LGraphNode {
     }
 
     setType(type, slot) {
+        // Ignore wildcard types - don't change output type or validate links
+        if (type === "*") return;
         if (this.outputs.length <= slot) return;
         this.outputs[slot].type = type;
         this.validateLinks();
     }
 
-    // Hook called when the node is placed into a graph
-    onAdded(graph) {
+    onAdded() {
+        this._justAdded = true;
+        // Original onAdded logic - refresh outputs when added to graph
         const node = this;
         requestAnimationFrame(() => {
             node.refreshOutputs();
-        })
+        });
     }
 
+    onConfigure() {
+        if (this._justAdded && !app.configuringGraph) {
+            const name = this.widgets[0].value;
+            if (name) {
+                // Check if our paired SetNode was renamed during this paste
+                const newName = _pasteRenameMap.get(name);
+                if (newName) {
+                    this.widgets[0].value = newName;
+                }
+                // Restore type/color from setter after paste
+                setTimeout(() => this.setColorsFromSetters(), 0);
+            }
+        }
+        this._justAdded = false;
+    }
+
+    // Find setter using cross-graph search (current graph + ancestors)
     findSetter() {
-        const group = this.widgets[0].value;
-        const foundNode = this.graph._nodes.find(
-            otherNode => (
-                DEFINE_SET_NODE_TYPES.includes(otherNode.type) || otherNode.type === DEFINE_SET_NODE_TYPE
-            ) && otherNode.widgets[0].value === group && group !== "");
-        return foundNode;
+        const group = this.widgets[0]?.value;
+        if (!group) return null;
+        
+        const result = darkilFindSetterByName(this.graph, group);
+        return result?.node;
     }
 
     setColorsFromSetters(colorOption = null) {
         if (colorOption) {
             this.setColorOption?.(colorOption);
         } else {
-            const colorOption = this.findSetter()?.getColorOption?.();
-            this.setColorOption?.(colorOption);
+            const setter = this.findSetter();
+            if (setter?.getColorOption) {
+                const opt = setter.getColorOption();
+                this.setColorOption?.(opt);
+            }
         }
     }
 
@@ -582,6 +834,103 @@ class darkilMultiGetNode extends LGraphNode {
         return link;
     }
 
+    // Resolve virtual output for cross-graph Set/Get support
+    resolveVirtualOutput(slot) {
+        const name = this.widgets?.find(w => w.type?.toLowerCase() === "combo")?.value;
+        if (!name) return undefined;
+
+        // Scoped lookup: own graph first, then ancestors
+        const result = darkilFindSetterByName(this.graph, name);
+        if (!result) return undefined;
+
+        // Same graph — let the standard getInputLink path handle it
+        if (result.graph === this.graph) return undefined;
+
+        // Warn if multiple SetNodes with this name exist in scope
+        const scopeGraphs = getGraphAncestors(this.graph);
+        const scopedSetters = collectNodesOfType(scopeGraphs, DEFINE_SET_NODE_TYPE)
+            .filter(e => e.node.widgets?.[0]?.value === name);
+        
+        // Also check KJ SetNode type
+        const kjSetters = collectNodesOfType(scopeGraphs, DEFINE_KJ_SET_NODE_TYPE)
+            .filter(e => e.node.widgets?.[0]?.value === name);
+        const allScopedSetters = [...scopedSetters, ...kjSetters];
+        
+        if (allScopedSetters.length > 1) {
+            showAlert(`Multiple SetNodes named "${name}" found in scope. Rename duplicates or use "Convert to links" to resolve`);
+            return undefined;
+        }
+
+        const { node: setter, graph: setterGraph } = result;
+        const slotInfo = setter.inputs?.[slot];
+        if (!slotInfo || slotInfo.link == null) return undefined;
+
+        const link = darkilGetLink(setterGraph, slotInfo.link);
+        if (!link) return undefined;
+
+        const sourceNode = setterGraph.getNodeById(link.origin_id);
+        if (!sourceNode) return undefined;
+
+        return { node: sourceNode, slot: link.origin_slot };
+    }
+
+    // Add context menu options for cross-graph operations
+    getExtraMenuOptions(_, options) {
+        this.currentSetter = this.findSetter();
+        if (!this.currentSetter) return;
+        
+        const sameGraph = this.currentSetter.graph === this.graph;
+        
+        if (!sameGraph || this.currentSetter.drawConnection !== this.drawConnection) {
+            let menuEntry = this.drawConnection ? "Hide connections" : "Show connections";
+            
+            options.unshift(
+                {
+                    content: "Convert to links",
+                    callback: () => {
+                        const graph = this.graph;
+                        const setters = new Set();
+                        
+                        // Find all getters with the same group name
+                        const groupName = this.widgets[0]?.value;
+                        if (groupName) {
+                            const getters = darkilFindGettersByName(graph, groupName);
+                            for (const g of getters) {
+                                if (g.node.findSetter) {
+                                    const s = g.node.findSetter(g.graph);
+                                    if (s) setters.add(s);
+                                }
+                            }
+                        }
+                        
+                        for (const s of setters) {
+                            convertCrossGraphSetGet(s, s.graph, []);
+                        }
+                        app.canvas?.setDirty(true, true);
+                    },
+                },
+                {
+                    content: "Go to setter",
+                    callback: () => {
+                        if (!this.currentSetter) return;
+                        app.canvas.selectNode(this.currentSetter, false);
+                        app.canvas.centerOnNode(this.currentSetter);
+                    },
+                },
+                {
+                    content: menuEntry,
+                    callback: () => {
+                        if (!this.currentSetter) return;
+                        const linkType = this.currentSetter.inputs?.[0]?.type;
+                        this.currentSetter.drawConnection = !this.currentSetter.drawConnection;
+                        this.currentSetter.slotColor = this.canvas.default_connection_color_byType?.[linkType];
+                        this.drawConnection = this.currentSetter.drawConnection;
+                        this.canvas.setDirty(true, true);
+                    },
+                },
+            );
+        }
+    }
 }
 
 
@@ -684,15 +1033,14 @@ class darkilMultiGetAIONode extends LGraphNode {
         });
     }
 
+    // Get available groups using cross-graph search (current + ancestors)
     getAvailableGroups() {
         if (!this.graph) return [];
-        const setterNodes = this.graph._nodes.filter(
-            n => DEFINE_SET_NODE_TYPES.includes(n.type) || n.type === DEFINE_SET_NODE_TYPE
-        );
-
-        const groups = [...new Set(setterNodes.map(n => n.widgets[0].value).filter(v => v))];
+        
+        // Use the same visible names function for consistency
+        const allGroups = darkilGetVisibleSetNames(this.graph);
         const groupsSet = new Set(this.getPrevGroups() || []);
-        return groups.filter(g => !groupsSet.has(g)).sort();
+        return allGroups.filter(g => !groupsSet.has(g));
     }
 
     updateGroupCount(newCount) {
@@ -733,7 +1081,7 @@ class darkilMultiGetAIONode extends LGraphNode {
     }
 
     getOutputName(groupIndex, outputType, inputIndex) {
-        return `${outputType}_${inputIndex} [ ${groupIndex} ]`
+        return outputType === "*" ? `ANY_${inputIndex}` : `${outputType}_${inputIndex} [ ${groupIndex} ]`
     }
 
     refreshOutputs() {
@@ -761,16 +1109,18 @@ class darkilMultiGetAIONode extends LGraphNode {
         let groupIdx = 1;
         let outputIdx = 0;
         for (const combo of this.groupComboWidgets) {
-            const group = combo.value?.trim();
-            if (!group) continue;          
-            const setter = this.graph._nodes.find(
-                n => (DEFINE_SET_NODE_TYPES.includes(n.type) || n.type === DEFINE_SET_NODE_TYPE)
-                    && n.widgets[0].value === group
-            );
-            if (!setter) continue;        
+            // Ensure value is converted to string before trimming
+            const group = String(combo.value ?? '').trim();
+            if (!group) continue;
+            
+            // Use cross-graph setter lookup
+            const setterResult = darkilFindSetterByName(this.graph, group);
+            const setter = setterResult?.node;
+            if (!setter) continue;
             let relevantInputs = [];
             if (setter.type === DEFINE_SET_NODE_TYPE) {
                 relevantInputs = setter.inputs.filter(i => i.type !== "*" && i.name !== "*");
+                // relevantInputs = [...setter.inputs];
             } else if (setter.type === DEFINE_KJ_SET_NODE_TYPE) {
                 // KJ‑Set - Single‑slot node
                 relevantInputs = [setter.inputs[0]];
@@ -795,9 +1145,12 @@ class darkilMultiGetAIONode extends LGraphNode {
             newOutputMap[key] = info.outputIdx;
         });
 
+        const notModifiedTypes = [];
+
         // Restoring old connections, taking into account the possible displacement
         const restoreOldLinks = (node) => {
             savedLinks.forEach((info, oldIdx) => {
+                
                 if (!info || !info.links?.length) return;
                 // trying to find a new index by group + entry index
                 let newIdx;
@@ -814,7 +1167,7 @@ class darkilMultiGetAIONode extends LGraphNode {
                 const out = node.outputs[newIdx];
                 if (!out) return;
                 // do not reconnect if there are already links or the type does not match.
-                if ((out.links && out.links.length) || out.type !== info.type) return;
+                // if ((out.links && out.links.length) || (out.type !== info.type && out.type !== "*")) return;
                 for (const { targetNodeId, targetSlot } of info.links) {
                     const targetNode = node.graph.getNodeById?.(targetNodeId);
                     if (!targetNode) continue;
@@ -881,8 +1234,8 @@ class darkilMultiGetAIONode extends LGraphNode {
                         const link = node.graph?.links[linkId];
                         return (
                             link &&
-                            !link.type.split(",").includes(outp.type) &&
-                            link.type !== "*"
+                            !link.type.split(",").includes(outp.type) // &&
+                            // link.type !== "*"
                         );
                     }
                 ).forEach(linkId => node.graph.removeLink(linkId));
@@ -890,17 +1243,20 @@ class darkilMultiGetAIONode extends LGraphNode {
         }
     }
 
-    setType() {  
+    setType(type, slot) {
+        // Ignore wildcard types - don't refresh outputs when type is "*"
+        if (type === "*") return;
         this.refreshOutputs();
-        this.setColorsFromSetters();  
+        this.setColorsFromSetters();
     }
 
+    // Update group using cross-graph search
     setGroup(group) {
         if (!this.graph) return [];
-        const setterNodes = this.graph._nodes.filter(
-            n => DEFINE_SET_NODE_TYPES.includes(n.type) || n.type === DEFINE_SET_NODE_TYPE
-        );
-        const groupsExist = new Set(setterNodes.map(n => n.widgets[0].value).filter(v => v));
+        
+        // Get all visible groups from current + ancestors
+        const allGroups = darkilGetVisibleSetNames(this.graph);
+        const groupsExist = new Set(allGroups);
         const widgetsMissed = this.widgets.map((w, wIdx) => ({i: wIdx - 1, w: w})).filter(w => w.w.type==="combo" && !groupsExist.has(w.w.value));
         if (!widgetsMissed || widgetsMissed.length !== 1) return;
         console.log(widgetsMissed);
@@ -909,7 +1265,7 @@ class darkilMultiGetAIONode extends LGraphNode {
             w.value = group;
             this.setPrevGroup(i, group);
             this.refreshOutputs();
-            this.setColorsFromSetters();  
+            this.setColorsFromSetters();
         }
     }
 
@@ -918,10 +1274,10 @@ class darkilMultiGetAIONode extends LGraphNode {
         if (!info) return null;
 
         const { groupName, inputIdx } = info;
-        const setter = this.graph._nodes.find(
-            n => (DEFINE_SET_NODE_TYPES.includes(n.type) || n.type === DEFINE_SET_NODE_TYPE)
-                && n.widgets[0].value === groupName
-        );
+        
+        // Use cross-graph setter lookup
+        const setterResult = darkilFindSetterByName(this.graph, groupName);
+        const setter = setterResult?.node;
         if (!setter) {
             showAlert(`No SetNode or MultiSetNode found for group (constant) "${groupName}"`);
             return null;
@@ -936,14 +1292,14 @@ class darkilMultiGetAIONode extends LGraphNode {
         const linkId = input.link;
         if (linkId == null) return null;
 
-        const targetGraph = setter.graph || this.graph;
+        const targetGraph = setterResult?.graph || this.graph;
         return targetGraph.links?.[linkId] ?? null;
     }
 
     setColorsFromSetters() {
         if (!this.graph &&
-            !this.slotInfo && 
-            !this.outputs.length && 
+            !this.slotInfo &&
+            !this.outputs.length &&
             !this.groupComboWidgets.length) return;
 
         const settersCache = {};
@@ -951,12 +1307,15 @@ class darkilMultiGetAIONode extends LGraphNode {
             const groupInfo = this.slotInfo?.[i];
             if (!groupInfo) continue;
             const { groupName } = groupInfo;
-            const setter = settersCache[groupName] || this.graph._nodes.find(
-                n => (DEFINE_SET_NODE_TYPES.includes(n.type) || n.type === DEFINE_SET_NODE_TYPE)
-                    && n.widgets[0].value === groupName
-            );
+            
+            // Use cross-graph lookup
+            let setter = settersCache[groupName];
+            if (!setter) {
+                const result = darkilFindSetterByName(this.graph, groupName);
+                setter = result?.node;
+                if (setter) settersCache[groupName] = setter;
+            }
             if (!setter) continue;
-            if (!(groupName in settersCache)) settersCache[groupName] = setter;
             let { bgcolor, color } = setter?.getColorOption?.() || {};
             if (bgcolor || color) {
                 this.outputs[i].color_off = bgcolor || color;
@@ -971,17 +1330,331 @@ class darkilMultiGetAIONode extends LGraphNode {
         }
     }
 
-    onAdded(graph) {
+    onAdded() {
+        this._justAdded = true;
+        // Original onAdded logic - refresh outputs when added to graph
         const node = this;
         requestAnimationFrame(() => {
             node.refreshOutputs();
             node.setColorsFromSetters();
         });
     }
+
+    onConfigure() {
+        if (this._justAdded && !app.configuringGraph) {
+            // Check each group combo widget for rename from paste
+            for (const comboWidget of this.groupComboWidgets) {
+                const name = comboWidget?.value;
+                if (!name) continue;
+                
+                // Check if our paired SetNode was renamed during this paste
+                const newName = _pasteRenameMap.get(name);
+                if (newName) {
+                    comboWidget.value = newName;
+                }
+            }
+            // Restore type/color from setter after paste
+            setTimeout(() => this.setColorsFromSetters(), 0);
+        }
+        this._justAdded = false;
+    }
+
+    // Resolve virtual output for cross-graph Set/Get support
+    resolveVirtualOutput(slot) {
+        const info = this.slotInfo?.[slot];
+        if (!info) return undefined;
+
+        const { groupName } = info;
+        if (!groupName) return undefined;
+
+        // Scoped lookup: own graph first, then ancestors
+        const result = darkilFindSetterByName(this.graph, groupName);
+        if (!result) return undefined;
+
+        // Same graph — let the standard getInputLink path handle it
+        if (result.graph === this.graph) return undefined;
+
+        // Cross-graph: find source node from setter's input link
+        const { node: setter, graph: setterGraph } = result;
+
+        // Find the corresponding input index in the setter
+        const inputIdx = info.inputIdx;
+        const slotInfo = setter.inputs?.[inputIdx];
+        if (!slotInfo || slotInfo.link == null) return undefined;
+
+        const link = setterGraph.links?.[slotInfo.link];
+        if (!link) return undefined;
+
+        const sourceNode = setterGraph.getNodeById(link.origin_id);
+        if (!sourceNode) return undefined;
+
+        return { node: sourceNode, slot: link.origin_slot };
+    }
+
+    // Find setter using cross-graph search
+    findSetter() {
+        // Check first combo widget value as primary group
+        const group = this.groupComboWidgets?.[0]?.value;
+        if (!group) return null;
+        
+        const result = darkilFindSetterByName(this.graph, group);
+        return result?.node;
+    }
+
+    // Add context menu options for cross-graph operations
+    getExtraMenuOptions(_, options) {
+        this.currentSetter = this.findSetter();
+        if (!this.currentSetter) return;
+        
+        const sameGraph = this.currentSetter.graph === this.graph;
+        
+        if (!sameGraph || this.currentSetter.drawConnection !== this.drawConnection) {
+            let menuEntry = this.drawConnection ? "Hide connections" : "Show connections";
+            
+            options.unshift(
+                {
+                    content: "Convert to links",
+                    callback: () => {
+                        const graph = this.graph;
+                        const setters = new Set();
+                        
+                        // Find all getters with the same groups
+                        for (const combo of this.groupComboWidgets || []) {
+                            const groupName = combo.value;
+                            if (groupName) {
+                                const getters = darkilFindGettersByName(graph, groupName);
+                                for (const g of getters) {
+                                    if (g.node.findSetter) {
+                                        const s = g.node.findSetter(g.graph);
+                                        if (s) setters.add(s);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        for (const s of setters) {
+                            convertCrossGraphSetGet(s, s.graph, []);
+                        }
+                        app.canvas?.setDirty(true, true);
+                    },
+                },
+                {
+                    content: "Go to setter",
+                    callback: () => {
+                        if (!this.currentSetter) return;
+                        app.canvas.selectNode(this.currentSetter, false);
+                        app.canvas.centerOnNode(this.currentSetter);
+                    },
+                },
+                {
+                    content: menuEntry,
+                    callback: () => {
+                        if (!this.currentSetter) return;
+                        const linkType = this.currentSetter.inputs?.[0]?.type;
+                        this.currentSetter.drawConnection = !this.currentSetter.drawConnection;
+                        this.currentSetter.slotColor = this.canvas.default_connection_color_byType?.[linkType];
+                        this.drawConnection = this.currentSetter.drawConnection;
+                        this.canvas.setDirty(true, true);
+                    },
+                },
+            );
+        }
+    }
 }
 
 
-// Extension registration                                                    
+// ============================================================
+// Helper functions for cross-graph conversion
+// ============================================================
+
+// Get link by ID - handles both Map and plain object _links
+function darkilGetLink(graph, linkId) {
+    if (linkId == null) return null;
+    if (graph.getLink) return graph.getLink(linkId);
+    return graph._links instanceof Map ? graph._links.get(linkId) : graph._links?.[linkId] ?? null;
+}
+
+// Collect {targetId, targetSlot} from an output slot's links
+function darkilCollectOutputConnections(graph, output) {
+    const connections = [];
+    if (output?.links) {
+        for (const linkId of [...output.links]) {
+            const link = darkilGetLink(graph, linkId);
+            if (link) connections.push({ targetId: link.target_id, targetSlot: link.target_slot });
+        }
+    }
+    return connections;
+}
+
+// Convert cross-graph Set/Get to SubgraphInput/SubgraphOutput
+function convertCrossGraphSetGet(setNode, setGraph, crossGraphGetters) {
+    // Find what's connected to the SetNode's input(s)
+    const relevantInputs = setNode.inputs.filter(i => i.type !== "*" && i.name !== "*");
+    
+    for (let inputIdx = 0; inputIdx < relevantInputs.length; inputIdx++) {
+        const setInput = setNode.inputs[inputIdx];
+        if (!setInput || setInput.link == null) continue;
+        
+        const sourceLink = darkilGetLink(setGraph, setInput.link);
+        if (!sourceLink) continue;
+        const sourceNode = setGraph.getNodeById(sourceLink.origin_id);
+        if (!sourceNode) continue;
+        const sourceSlot = sourceLink.origin_slot;
+        const linkType = setInput.type || '*';
+
+        for (const { node: getter, graph: getterGraph } of crossGraphGetters) {
+            // Collect getter's downstream connections before removing it
+            let outputIndex = -1;
+            
+            // For MultiGetAIONode, find the correct output index from slotInfo
+            if (getter.slotInfo) {
+                const matchingSlot = getter.slotInfo.find(si => si.groupName === setNode.widgets[0].value && si.inputIdx === inputIdx);
+                if (matchingSlot) outputIndex = matchingSlot.outputIdx;
+            }
+            
+            const getterOutput = outputIndex >= 0 ? getter.outputs[outputIndex] : getter.outputs?.[inputIdx];
+            if (!getterOutput) continue;
+            
+            const connections = darkilCollectOutputConnections(getterGraph, getterOutput);
+            if (connections.length === 0) {
+                getterGraph.remove(getter);
+                continue;
+            }
+
+            // Determine direction and create SubgraphInput or SubgraphOutput
+            const rootGraph = findRootGraph(setGraph);
+            const sgNodeForGetter = findSubgraphNodeFor(rootGraph, getter);
+            const sgNodeForSetter = findSubgraphNodeFor(rootGraph, setNode);
+
+            if (sgNodeForGetter && setGraph === rootGraph) {
+                // Set in root, Get in subgraph → create SubgraphInput
+                const subgraph = sgNodeForGetter.subgraph;
+                const inputName = setNode.widgets[0].value || linkType;
+                const newInput = subgraph.addInput(inputName, linkType);
+                const inputIndex = subgraph.inputs.indexOf(newInput);
+
+                // Connect source → SubgraphNode's new input in root graph
+                sourceNode.connect(sourceSlot, sgNodeForGetter, inputIndex);
+
+                // Inside subgraph: connect SubgraphInput slot → getter's targets
+                for (const conn of connections) {
+                    if (conn.targetId === subgraph.outputNode?.id) {
+                        // GetNode fed a SubgraphOutput — bypass it and connect source directly in parent graph.
+                        const sgNodeOutput = sgNodeForGetter.outputs[conn.targetSlot];
+                        if (sgNodeOutput?.links) {
+                            for (const parentLinkId of [...sgNodeOutput.links]) {
+                                const parentLink = darkilGetLink(rootGraph, parentLinkId);
+                                if (parentLink) {
+                                    const parentTarget = rootGraph.getNodeById(parentLink.target_id);
+                                    if (parentTarget) {
+                                        sourceNode.connect(sourceSlot, parentTarget, parentLink.target_slot);
+                                    }
+                                }
+                            }
+                        }
+                        // Remove the now-unnecessary SubgraphOutput
+                        const sgOutput = subgraph.outputs[conn.targetSlot];
+                        if (sgOutput) {
+                            subgraph.removeOutput(sgOutput);
+                        }
+                    } else {
+                        const targetNode = getterGraph.getNodeById(conn.targetId);
+                        if (targetNode && targetNode.inputs?.[conn.targetSlot]) {
+                            newInput.connect(targetNode.inputs[conn.targetSlot], targetNode);
+                        }
+                    }
+                }
+
+                // If no connections used the SubgraphInput, remove it
+                if (!newInput.link || newInput.link === null) {
+                    subgraph.removeInput(newInput);
+                }
+
+                getterGraph.remove(getter);
+
+            } else if (sgNodeForSetter && getterGraph === rootGraph) {
+                // Set in subgraph, Get in root → create SubgraphOutput
+                const subgraph = sgNodeForSetter.subgraph;
+                const outputName = setNode.widgets[0].value || linkType;
+                const newOutput = subgraph.addOutput(outputName, linkType);
+                const outputIndex = subgraph.outputs.indexOf(newOutput);
+
+                // Inside subgraph: connect source output → SubgraphOutput slot
+                newOutput.connect(sourceNode.outputs[sourceSlot], sourceNode);
+
+                // In root graph: connect SubgraphNode's new output → getter's targets
+                for (const conn of connections) {
+                    const targetNode = getterGraph.getNodeById(conn.targetId);
+                    if (targetNode) {
+                        sgNodeForSetter.connect(outputIndex, targetNode, conn.targetSlot);
+                    }
+                }
+
+                getterGraph.remove(getter);
+
+            } else {
+                // Both in different subgraphs (sibling) — would need both input and output
+                console.warn(`[darkilNodes] Cannot convert cross-graph Set/Get: both nodes are in nested subgraphs. Consider using "Convert All" from the menu.`);
+            }
+        }
+    }
+}
+
+// Convert all cross-graph Set/Get pairs to real links
+function darkilConvertAllSetGetToLinks(graph) {
+    if (!graph) return;
+    const rootGraph = findRootGraph(graph);
+
+    // First pass: handle cross-graph pairs
+    const allSetEntries = [
+        ...findAllNodesOfType(rootGraph, DEFINE_SET_NODE_TYPE),
+        ...findAllNodesOfType(rootGraph, DEFINE_KJ_SET_NODE_TYPE)
+    ];
+    
+    for (const { node: setNode, graph: setGraph } of [...allSetEntries]) {
+        const name = setNode.widgets?.[0]?.value;
+        if (!name) continue;
+        
+        const allGetEntries = darkilFindGettersByName(rootGraph, name);
+        const crossGraphGetters = allGetEntries.filter(e => e.graph !== setGraph);
+        if (crossGraphGetters.length > 0) {
+            convertCrossGraphSetGet(setNode, setGraph, crossGraphGetters);
+        }
+    }
+
+    // Second pass: handle remaining same-graph pairs
+    // For now we just remove the virtual Get nodes that have no connections
+    const allGetEntries = [
+        ...findAllNodesOfType(rootGraph, DEFINE_GET_NODE_TYPE),
+        ...findAllNodesOfType(rootGraph, DEFINE_GET_AIO_NODE_TYPE)
+    ];
+    
+    for (const { node: getNode, graph: g } of allGetEntries) {
+        // Check if this getter has any output connections
+        let hasConnections = false;
+        for (const outp of getNode.outputs || []) {
+            if (outp.links && outp.links.length > 0) {
+                hasConnections = true;
+                break;
+            }
+        }
+        
+        // If no connections and setter is in a different graph, remove the getter
+        if (!hasConnections) {
+            const groupName = getNode.widgets?.[0]?.value ||
+                (getNode.groupComboWidgets?.[0]?.value);
+            if (groupName) {
+                const setterResult = darkilFindSetterByName(g, groupName);
+                if (setterResult && setterResult.graph !== g) {
+                    g.remove(getNode);
+                }
+            }
+        }
+    }
+}
+
+
+// Extension registration
 app.registerExtension({
     name: "darkil_nodes_logic.darkilMultiSetGet",
     
@@ -1013,4 +1686,91 @@ app.registerExtension({
         darkilMultiSetNode.category = darkilMultiGetNode.category = "darkilNodes/logic";
         darkilMultiGetAIONode.category = "darkilNodes/logic";
     },
+
+    // Add global "Convert All Set/Get to Links" command
+    setup() {
+        // Override getCanvasMenuOptions to add our custom option
+        const originalGetCanvasMenuOptions = app.canvas.getCanvasMenuOptions;
+        if (originalGetCanvasMenuOptions) {
+            app.canvas.getCanvasMenuOptions = function(options, e) {
+                const result = originalGetCanvasMenuOptions.call(this, options, e);
+                
+                // Find the appropriate place to insert our option (after "Add Node")
+                let insertIndex = -1;
+                for (let i = 0; i < result.length; i++) {
+                    if (result[i]?.content === "Add Node") {
+                        insertIndex = i + 1;
+                        break;
+                    }
+                }
+                
+                const convertOption = {
+                    content: "Convert All Set/Get to Links [darkilNodes]",
+                    callback: () => {
+                        if (confirm("This will replace ALL cross-graph Set/Get pairs with direct links. This is irreversible. Continue?")) {
+                            darkilConvertAllSetGetToLinks(app.graph);
+                            app.canvas.setDirty(true, true);
+                        }
+                    },
+                };
+                
+                if (insertIndex > 0) {
+                    result.splice(insertIndex, 0, convertOption);
+                } else {
+                    result.push(convertOption);
+                }
+                
+                return result;
+            };
+        }
+    },
+});
+
+// Cross-graph Set/Get support - patch for frontends without native resolveVirtualOutput
+app.registerExtension({
+    name: "darkilNodes.CrossGraphSetGet",  
+    setup() {
+        let patched = false;
+
+        const originalGraphToPrompt = app.graphToPrompt.bind(app);
+        app.graphToPrompt = async function(...args) {
+            if (!patched) {
+                try {
+                    const subgraphNode = app.graph._nodes.find(n => typeof n.getInnerNodes === 'function');
+                    if (subgraphNode) {
+                        const tempMap = new Map();
+                        const dtos = subgraphNode.getInnerNodes(tempMap, []);
+                        if (dtos.length > 0) {
+                            const proto = Object.getPrototypeOf(dtos[0]);
+                            const DtoClass = proto.constructor;
+                            const nativeSource = proto.resolveOutput.toString();
+                            const hasNativeSupport = nativeSource.includes('resolveVirtualOutput');
+                            console.log(`[darkilNodes] Cross-graph Set/Get: frontend native support ${hasNativeSupport ? 'detected, skipping patch' : 'not found, applying patch (kijai implementation)'}`);
+                            if (!hasNativeSupport) {
+                                const origResolveOutput = proto.resolveOutput;
+                                proto.resolveOutput = function(slot, type, visited) {
+                                    if (typeof this.node?.resolveVirtualOutput === 'function') {
+                                        const virtualSource = this.node.resolveVirtualOutput(slot);
+                                        if (virtualSource) {
+                                            const inputNodeDto = [...this.nodesByExecutionId.values()]
+                                                .find(dto => dto instanceof DtoClass && dto.node === virtualSource.node);
+                                            if (inputNodeDto) {
+                                                return inputNodeDto.resolveOutput(virtualSource.slot, type, visited);
+                                            }
+                                            throw new Error(`darkilNodes: No DTO found for cross-graph source node [${virtualSource.node.id}]`);
+                                        }
+                                    }
+                                    return origResolveOutput.call(this, slot, type, visited);
+                                };
+                            }
+                            patched = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[darkilNodes] Failed to probe ExecutableNodeDTO for cross-graph patch:', e);
+                }
+            }
+            return originalGraphToPrompt(...args);
+        };
+    }
 });
