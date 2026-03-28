@@ -361,60 +361,60 @@ app.registerExtension({
         };
 
         return nodeType;
-    },
+    }//,
 
-    getNodeMenuItems(node) {
-        if (node.comfyClass !== NODE_ID) return;
+    // getNodeMenuItems(node) {
+    //     if (node.comfyClass !== NODE_ID) return;
 
-        // Helper to toggle input_enable property
-        const toggleInputEnable = () => {
-            const widget = getNodePropertiesWidget(node);
-            if (!widget) return;
+    //     // Helper to toggle input_enable property
+    //     const toggleInputEnable = () => {
+    //         const widget = getNodePropertiesWidget(node);
+    //         if (!widget) return;
             
-            const cache = getNodePropertiesCache(widget);
-            cache.input_enable = !cache.input_enable;
-            setNodePropertiesCache(widget, cache);
+    //         const cache = getNodePropertiesCache(widget);
+    //         cache.input_enable = !cache.input_enable;
+    //         setNodePropertiesCache(widget, cache);
             
-            node.properties.input_enable = cache.input_enable;
-            updateInputSlot(node);
+    //         node.properties.input_enable = cache.input_enable;
+    //         updateInputSlot(node);
             
-            app.graph.setDirtyCanvas(true);
-            app.canvas.setModified(true);
-        };
+    //         app.graph.setDirtyCanvas(true);
+    //         app.canvas.setModified(true);
+    //     };
 
-        // Helper to change type
-        const changeType = (newType) => {
-            const widget = getNodePropertiesWidget(node);
-            if (!widget) return;
+    //     // Helper to change type
+    //     const changeType = (newType) => {
+    //         const widget = getNodePropertiesWidget(node);
+    //         if (!widget) return;
             
-            const cache = getNodePropertiesCache(widget);
-            cache.const_type = newType;
-            setNodePropertiesCache(widget, cache);
+    //         const cache = getNodePropertiesCache(widget);
+    //         cache.const_type = newType;
+    //         setNodePropertiesCache(widget, cache);
             
-            node.properties.const_type = newType;
-            setupWidgets(node);
+    //         node.properties.const_type = newType;
+    //         setupWidgets(node);
             
-            app.graph.setDirtyCanvas(true);
-            app.canvas.setModified(true);
-        };
+    //         app.graph.setDirtyCanvas(true);
+    //         app.canvas.setModified(true);
+    //     };
 
-        return [
-            {
-                content: "Switch the input for conversion",
-                callback: toggleInputEnable
-            },
-            {
-                content: "Change the conversion type >",
-                submenu: {
-                    options: [
-                        { content: "STRING", callback: () => changeType("STRING") },
-                        { content: "INT", callback: () => changeType("INT") },
-                        { content: "FLOAT", callback: () => changeType("FLOAT") },
-                        { content: "SLIDER", callback: () => changeType("SLIDER") },
-                        { content: "KNOB", callback: () => changeType("KNOB") }
-                    ]
-                }
-            }
-        ];
-    }
+    //     return [
+    //         {
+    //             content: "Switch the input for conversion",
+    //             callback: toggleInputEnable
+    //         },
+    //         {
+    //             content: "Change the conversion type >",
+    //             submenu: {
+    //                 options: [
+    //                     { content: "STRING", callback: () => changeType("STRING") },
+    //                     { content: "INT", callback: () => changeType("INT") },
+    //                     { content: "FLOAT", callback: () => changeType("FLOAT") },
+    //                     { content: "SLIDER", callback: () => changeType("SLIDER") },
+    //                     { content: "KNOB", callback: () => changeType("KNOB") }
+    //                 ]
+    //             }
+    //         }
+    //     ];
+    // }
 });
