@@ -44,7 +44,7 @@ class Wan22VideoLoraListBuilder:
     RETURN_TYPES = ("WANVIDLORA", "WANVIDLORA", "STRING")
     RETURN_NAMES = ("lora_low", "lora_high", "❓help",)
     FUNCTION = "parse_loras"
-    CATEGORY = "darkilNodes/lora"
+    CATEGORY = "darkilNodes/wan"
     
     HELP_TEXT = """This node parses a textual list of LoRA definitions for WanVideoWrapper Nodes by Kijai and outputs two lists:
 low-noise (LORA_LOW) and high-noise (LORA_HIGH).

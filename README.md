@@ -57,7 +57,6 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - `PROMPT ENABLED` (BOOL): compiled_prompt output active
   - `EXTRA ENABLED` (BOOL): extra_compiled output active
 
-
 #### 4. Text is empty [darkilNodes]
 ![Text is empty](docs/images/node_text_is_empty.png)
 - **Category**: darkilNodes/text
@@ -129,21 +128,62 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
 - **UI Configuration Properties**:
   - `text_for_combo`: List of items (semicolon or pipe separated)
 
-#### 3. Diffusion model loader later [darkilNodes]
+#### 3. Diffusion Model Load Later [darkilNodes]
 ![Diffusion model loader later](docs/images/node_diff_model_later.png)
 - **Category**: darkilNodes/logic
-- **Description**: Loads the diffusion model into memory later.
+- **Description**: Loads the diffusion model into memory later in the workflow chain.
 - **Features**:
-  - Allows you to connect the loader of the model along the chain, in the scheme
-  - Allows you to clear the model cache
-  - Allows you to unload models from memory
-- **UI Configuration Properties**:
-  - `any_trigger`: any type as a trigger for loading the diffusion model
-  - `empty_cache`: clears the ComfyUI cache if enabled
-  - `gc_collect`: <python> gc.collect()
-  - `unload_models`: unloads previously loaded models into memory if enabled
+  - Allows connecting the loader of the model along the chain
+  - Allows clearing the model cache
+  - Allows unloading models from memory
+- **Inputs**:
+  - `any_trigger`: Any type as a trigger for loading the diffusion model
+  - `unet_name`: Name of the diffusion model to load
+  - `weight_dtype`: Weight data type (default, fp8_e4m3fn, fp8_e4m3fn_fast, fp8_e5m2)
+  - `empty_cache`: Clears the ComfyUI cache if enabled
+  - `gc_collect`: Python gc.collect()
+  - `unload_models`: Unloads previously loaded models from memory
 
-#### 4. Multi Set [darkilNodes]
+#### 4. CLIP Load Later [darkilNodes]
+- **Category**: darkilNodes/logic
+- **Description**: Loads the CLIP model into memory later in the workflow chain.
+- **Features**:
+  - Allows connecting the CLIP loader along the execution chain
+  - Supports memory cleanup options
+- **Inputs**:
+  - `any_trigger`: Any type as a trigger for loading the CLIP model
+  - Standard CLIP loader inputs (`clip_name`, `type`)
+  - `empty_cache`: Clears the ComfyUI cache if enabled
+  - `gc_collect`: Python gc.collect()
+  - `unload_models`: Unloads previously loaded models from memory
+
+#### 5. DualCLIP Load Later [darkilNodes]
+- **Category**: darkilNodes/logic
+- **Description**: Loads the DualCLIP model into memory later in the workflow chain.
+- **Features**:
+  - Allows connecting the DualCLIP loader along the execution chain
+  - Supports memory cleanup options
+- **Inputs**:
+  - `any_trigger`: Any type as a trigger for loading the DualCLIP model
+  - Standard DualCLIP loader inputs (`clip_name1`, `clip_name2`, `type`)
+  - `empty_cache`: Clears the ComfyUI cache if enabled
+  - `gc_collect`: Python gc.collect()
+  - `unload_models`: Unloads previously loaded models from memory
+
+#### 6. VAE Load Later [darkilNodes]
+- **Category**: darkilNodes/logic
+- **Description**: Loads the VAE model into memory later in the workflow chain.
+- **Features**:
+  - Allows connecting the VAE loader along the execution chain
+  - Supports memory cleanup options
+- **Inputs**:
+  - `any_trigger`: Any type as a trigger for loading the VAE model
+  - Standard VAE loader input (`vae_name`)
+  - `empty_cache`: Clears the ComfyUI cache if enabled
+  - `gc_collect`: Python gc.collect()
+  - `unload_models`: Unloads previously loaded models from memory
+
+#### 7. Multi Set [darkilNodes]
 ![Multi Set](docs/images/node_setget.png)
 - **Category**: darkilNodes/logic
 - **Description**: Creates a named *group* that dynamically generates matching input and output slots.
@@ -155,7 +195,7 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - Propagates color changes to linked Get nodes.
   - Virtual node – does not affect prompt serialization.
 
-#### 5. Multi Get [darkilNodes]
+#### 8. Multi Get [darkilNodes]
 - **Category**: darkilNodes/logic
 - **Description**: Reads a *group* created by a Multi Set node and generates matching output slots dynamically.
 - **Features**:
@@ -165,18 +205,18 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - Validates links to avoid type mismatches.
   - Synchronizes node colour with its corresponding Multi Set node.
 
-#### 6. Multi Get AIO [darkilNodes]
+#### 9. Multi Get AIO [darkilNodes]
 - **Category**: darkilNodes/logic
-- **Description**: An “All‑In‑One” version of Multi Get that can pull data from multiple groups at once.
+- **Description**: An "All-In-One" version of Multi Get that can pull data from multiple groups at once.
 - **Features**:
   - Widget to set the number of groups (1–100) and a combo box for each group to select an existing Multi Set group.
   - Generates output slots for every input of every selected group, naming them as `<type>_<index> [ <group_index> ]`.
-  - Maintains connections across re‑configuration by mapping old outputs to new ones based on group name and original input index.
+  - Maintains connections across re-configuration by mapping old outputs to new ones based on group name and original input index.
   - Supports colour inheritance from each source Multi Set node.
   - Validates and cleans up broken links automatically.
   - Virtual node – does not affect prompt serialization.
 
-#### 7. Constant setter [darkilNodes]
+#### 10. Constant setter [darkilNodes]
 ![Constant setter 1](docs/images/node_constant_setter_1.png)
 ![Constant setter 2](docs/images/node_constant_setter_2.png)
 ![Constant setter 3](docs/images/node_constant_setter_3.png)
@@ -194,11 +234,36 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - `values`: Semicolon-separated list for COMBO type
   - `input_enable`: Enable input slot for value conversion
 
-### LoRA Nodes
+### WAN Nodes
 
-#### 1. LoRA list for WanVideoWrapper by Kijai [darkilNodes]
+#### 1. I2V Encode with Middle Frame [darkilNodes]
+![I2V Encode with Middle Frame](docs/images/node_wanvideowrapper_i2v_.png)
+- **Category**: darkilNodes/wan
+- **Description**: Clone of WanVideoWrapper's 'WanVideo ImageToVideo Encode' with added middle frame support. Built from code of other custom node projects.
+- **Features**:
+  - Accepts start_image, middle_image (optional), and end_image (optional)
+  - middle_frame_ratio controls the position of the middle frame (0.0 = start, 1.0 = end)
+  - middle_latent_strength controls the conditioning strength of the middle frame in latent space
+  - motion_amplitude (>1.0) enhances inter-frame motion
+  - Supports noise augmentation, tiled VAE encoding, and empty frame padding
+- **Based on**:
+  - [ComfyUI-Wan22FMLF](https://github.com/wallen0322/ComfyUI-Wan22FMLF)
+  - [ComfyUI-PainterI2VforKJ](https://github.com/princepainter/ComfyUI-PainterI2VforKJ)
+  - [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)
+- **Inputs**:
+  - `width`, `height`, `num_frames`
+  - `noise_aug_strength`, `start_latent_strength`, `end_latent_strength`, `middle_latent_strength`
+  - `middle_frame_ratio`, `motion_amplitude`, `force_offload`
+  - `vae` (WANVAE)
+  - `start_image`, `middle_image`, `end_image`
+  - `clip_embeds`, `control_embeds`, `temporal_mask`, `extra_latents`
+  - `tiled_vae`, `fun_or_fl2v_model`, `augment_empty_frames`, `empty_frame_pad_image`
+- **Outputs**:
+  - `image_embeds` (WANVIDIMAGE_EMBEDS)
+
+#### 2. LoRA list for WanVideoWrapper by Kijai [darkilNodes]
 ![LoRA list for WanVideoWrapper by Kijai](docs/images/node_wan22.png)
-- **Category**: darkilNodes/lora
+- **Category**: darkilNodes/wan
 - **Description**: Parses textual lists of LoRA definitions for WanVideoWrapper nodes by Kijai.
 - **Features**:
   - Supports multiple input formats (newlines, semicolons, pipes)
