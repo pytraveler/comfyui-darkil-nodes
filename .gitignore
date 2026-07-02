@@ -184,3 +184,6 @@ logs/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# node user data
+nodes/conditioning/krea2_eq_presets.json

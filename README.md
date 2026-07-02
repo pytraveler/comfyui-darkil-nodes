@@ -281,6 +281,26 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - Low-memory loading option
   - Automatic handling of missing files with error logging
 
+### Conditioning Nodes
+
+#### 1. Krea2 Rebalance Equalizer [darkilNodes]
+![Krea2 Rebalance Equalizer](docs/images/node_krea2_cond_rebalance.png)
+- **Category**: darkilNodes/conditioning
+- **Description**: Per-layer conditioning scaler for the Krea 2 (Qwen3-VL-4B, 12-layer tap) layout. Adjust the gain of each model tap layer with a built-in equalizer, then scale the whole conditioning by a multiplier.
+- **Features**:
+  - Horizontal equalizer with 12 vertical faders, one per Krea 2 tap layer (labeled 2, 5, 8, … 35), range −2.0 … 10.0
+  - `multiplier` rendered as a matching horizontal slider (−10.0 … 10.0)
+  - "Reset to defaults" button
+  - Presets: save the current profile (multiplier + 12 weights) under a name, load it from a combo box, delete with the red ✖. Presets are stored server-side in `nodes/conditioning/krea2_eq_presets.json` (shared across browsers/workflows on the machine; no extra port — served by the existing ComfyUI server)
+  - Fully custom-drawn UI with no external JS dependencies
+- **Inputs**:
+  - `conditioning` (CONDITIONING): the conditioning to rescale
+  - `multiplier` (FLOAT): global scale applied to the whole conditioning
+- **Outputs**:
+  - `conditioning` (CONDITIONING): the rescaled conditioning
+- **Based on**:
+  - [ComfyUI-Conditioning-Rebalance](https://github.com/nova452/ComfyUI-ConditioningKrea2Rebalance) (Apache-2.0) — vendored scaling helpers, see `nodes/conditioning/THIRD_PARTY_LICENSES.txt`
+
 ### File Handling Nodes
 
 #### 1. Files list from dir [darkilNodes]

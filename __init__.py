@@ -24,6 +24,9 @@ from .nodes.logic.model_load_later import (
 from .nodes.wan.wan22_lora_list_builder import Wan22VideoLoraListBuilder
 from .nodes.wan.i2v_encode_middle import WanVideoI2VEncodeMiddle
 
+from .nodes.conditioning.krea2_rebalance_eq import Krea2RebalanceEqualizer
+from .nodes.conditioning import presets as _krea2_eq_presets  # registers HTTP routes
+
 from .nodes.files.files_list import FilesList
 
 
@@ -49,7 +52,10 @@ NODE_CLASS_MAPPINGS = {
     # WAN
     as_node_name(Wan22VideoLoraListBuilder): Wan22VideoLoraListBuilder,
     as_node_name(WanVideoI2VEncodeMiddle): WanVideoI2VEncodeMiddle,
-    
+
+    # CONDITIONING
+    as_node_name(Krea2RebalanceEqualizer): Krea2RebalanceEqualizer,
+
     # FILES
     as_node_name(FilesList): FilesList,
 }
@@ -77,7 +83,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # WAN
     as_node_name(Wan22VideoLoraListBuilder): "LoRA list for WanVideoWrapper by Kijai [darkilNodes]",
     as_node_name(WanVideoI2VEncodeMiddle): "I2V Encode with Middle Frame [darkilNodes]",
-    
+
+    # CONDITIONING
+    as_node_name(Krea2RebalanceEqualizer): "Krea2 Rebalance Equalizer [darkilNodes]",
+
     # FILES
     as_node_name(FilesList): "Files list from dir [darkilNodes]",
 }
