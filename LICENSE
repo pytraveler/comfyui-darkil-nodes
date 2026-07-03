@@ -19,3 +19,26 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+===============================================================================
+Component licenses (exceptions to the MIT license above)
+===============================================================================
+
+The MIT license above covers the package as a whole EXCEPT for the components
+listed below, which are derivative works of third-party code and are licensed
+under the license of their upstream project:
+
+  * web/js/multi_set_get.js
+      GNU General Public License v3.0 (GPL-3.0).
+      Derived from ComfyUI-KJNodes (https://github.com/kijai/ComfyUI-KJNodes),
+      Copyright (c) kijai and contributors, GPL-3.0.
+      Full text: web/js/LICENSE.GPL-3.0.txt
+
+  * nodes/conditioning/rebalance_core.py (vendored scaling helpers)
+      Apache License 2.0. Derived from ComfyUI-Conditioning-Rebalance
+      (https://github.com/nova452/ComfyUI-ConditioningKrea2Rebalance).
+      See nodes/conditioning/THIRD_PARTY_LICENSES.txt
+
+  * nodes/wan/i2v_encode_middle.py
+      Adapts logic from ComfyUI-WanVideoWrapper (Apache-2.0) and related
+      projects (see README "I2V Encode with Middle Frame" -> "Based on").

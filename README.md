@@ -216,6 +216,11 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - Validates and cleans up broken links automatically.
   - Virtual node – does not affect prompt serialization.
 
+> **Multi Set / Multi Get / Multi Get AIO** (`web/js/multi_set_get.js`) are
+> derived from [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes)
+> (© kijai and contributors) and, unlike the rest of this MIT-licensed package,
+> are licensed under **GPL-3.0**. See `web/js/LICENSE.GPL-3.0.txt`.
+
 #### 10. Constant setter [darkilNodes]
 ![Constant setter 1](docs/images/node_constant_setter_1.png)
 ![Constant setter 2](docs/images/node_constant_setter_2.png)
@@ -345,4 +350,17 @@ Wan22VideoLoraListBuilder → WanVideoSetLoRAs (Kijai)
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License for the package as a whole — see the LICENSE file for details.
+
+**Component exceptions** (derivative works under their upstream licenses):
+
+- `web/js/multi_set_get.js` (Multi Set / Multi Get / Multi Get AIO) is licensed
+  under **GPL-3.0**, derived from
+  [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) (© kijai and
+  contributors). Full text: `web/js/LICENSE.GPL-3.0.txt`.
+- `nodes/conditioning/rebalance_core.py` — Apache-2.0, see
+  `nodes/conditioning/THIRD_PARTY_LICENSES.txt`.
+- `nodes/wan/i2v_encode_middle.py` — adapts Apache-2.0 code from WanVideoWrapper
+  and related projects (see the node's "Based on" list above).
+
+See the "Component licenses" section of the LICENSE file for the full list.

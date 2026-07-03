@@ -345,4 +345,17 @@ Wan22VideoLoraListBuilder → WanVideoSetLoRAs (Kijai)
 
 ## Лицензия
 
-Лицензия MIT - подробности см. в файле LICENSE.
+Лицензия MIT для пакета в целом — подробности см. в файле LICENSE.
+
+**Исключения по компонентам** (производные работы под лицензиями своих источников):
+
+- `web/js/multi_set_get.js` (Multi Set / Multi Get / Multi Get AIO) — под
+  **GPL-3.0**, производное от
+  [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) (© kijai и
+  контрибьюторы). Полный текст: `web/js/LICENSE.GPL-3.0.txt`.
+- `nodes/conditioning/rebalance_core.py` — Apache-2.0, см.
+  `nodes/conditioning/THIRD_PARTY_LICENSES.txt`.
+- `nodes/wan/i2v_encode_middle.py` — адаптирует код Apache-2.0 из WanVideoWrapper
+  и связанных проектов (см. список «Based on» у ноды выше).
+
+Полный перечень — в разделе «Component licenses» файла LICENSE.

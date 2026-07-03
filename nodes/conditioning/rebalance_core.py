@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Per-layer conditioning scaling.
 
 Derived from ComfyUI-Conditioning-Rebalance (Apache License 2.0):

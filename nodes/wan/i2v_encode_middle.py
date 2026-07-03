@@ -1,3 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+"""I2V Encode with Middle Frame.
+
+Adapts encode logic from ComfyUI-WanVideoWrapper (Apache-2.0) and related
+projects; see the README "I2V Encode with Middle Frame" -> "Based on" list.
+"""
+
 import gc
 import logging
 from typing import Any, Dict

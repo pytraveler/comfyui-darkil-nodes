@@ -26,6 +26,11 @@ function clamp(v, lo, hi) {
     return v < lo ? lo : v > hi ? hi : v;
 }
 
+function ignoreInjectedWidth(w) {
+    Object.defineProperty(w, "width", { configurable: true, get() {}, set() {} });
+    return w;
+}
+
 function quantizeMult(v) {
     v = clamp(v, MULT_MIN, MULT_MAX);
     v = Math.round(v / MULT_STEP) * MULT_STEP;
@@ -325,8 +330,8 @@ app.registerExtension({
                 },
             };
 
-            this.widgets.push(multBar);
-            this.widgets.push(eq);
+            this.widgets.push(ignoreInjectedWidth(multBar));
+            this.widgets.push(ignoreInjectedWidth(eq));
 
             const resetBtn = this.addWidget("button", "Reset to defaults", null, () => {
                 if (multiplierWidget) multiplierWidget.value = MULT_DEFAULT;
@@ -450,7 +455,7 @@ app.registerExtension({
                 },
             };
 
-            this.widgets.push(actions);
+            this.widgets.push(ignoreInjectedWidth(actions));
 
             this.size[0] = Math.max(this.size[0] || 0, 340);
 
