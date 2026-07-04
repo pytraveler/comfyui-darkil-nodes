@@ -5,7 +5,6 @@ import textwrap
 
 
 def directive_spaceless(text: str) -> str:
-    """Collapse whitespace and strip ends."""
     return re.sub(r'\s+', ' ', text).strip()
 
 def directive_lower(text: str) -> str:
@@ -18,11 +17,9 @@ def directive_title(text: str) -> str:
     return text.title()
 
 def sentence_case(s: str) -> str:
-    """Capitalize the first character of each sentence."""
     s = s.strip()
     if not s:
         return s
-    # Ensure the very first character is uppercase
     s = s[0].upper() + s[1:]
 
     def cap(match):
@@ -53,7 +50,7 @@ def directive_list(text: str) -> str:
     lines = [ln.lstrip() for ln in text.splitlines()]
     non_empty = [ln for ln in lines if ln]
     return "\n".join(non_empty)
-    
+
 def directive_list_right(text: str) -> str:
     lines = [ln.strip() for ln in text.splitlines()]
     non_empty = [ln for ln in lines if ln]

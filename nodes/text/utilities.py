@@ -7,7 +7,7 @@ def split_input_lines(
     inp: Union[bool, str, int, float, List[Union[bool, str, int, float]]],
 ) -> List[str]:
     if isinstance(inp, str) and any(check for _ in ("\n", "\r") if (check := _ in inp)):
-        return re.split(r"[ \t]*[\n\r]+[ \t]*", inp, re.I + re.M)
+        return re.split(r"[ \t]*[\n\r]+[ \t]*", inp, flags=re.I | re.M)
 
     if isinstance(inp, (str, int, float, bool)):
         return [str(inp).strip()] if inp is not None else []
@@ -32,7 +32,7 @@ def parse_input_lines(lines: List[str]) -> Tuple[Dict[str, str], str]:
             name, val = line.split("=", 1)
             raw[name.strip()] = val.strip()
         else:
-            default_value = line      # last non‑empty “default” line wins
+            default_value = line
     return raw, default_value
 
 
@@ -84,7 +84,7 @@ def strip_quotes(token: str) -> Union[str, None]:
 
 def strip_all_comments(text: str) -> str:
     text = re.sub(r'/\*[\s\S]*?\*/', '', text)
-    text = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'(?:^|(?<=\s))//.*$', '', text, flags=re.MULTILINE)
     text = re.sub(r'^#.*$', '', text, flags=re.MULTILINE)
     return text
 

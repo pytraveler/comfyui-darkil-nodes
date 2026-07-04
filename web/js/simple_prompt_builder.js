@@ -20,14 +20,29 @@ function getHiddenWidgetFromNode(node) {
 }
 
 
-function getCache(widget) {
-    try { 
-        return JSON.parse(widget?.value ?? "{}"); 
+function showToast(detail, severity = "warn") {
+    try {
+        app.extensionManager?.toast?.add({
+            severity,
+            summary: "Prompt Builder",
+            detail,
+            life: 6000,
+        });
+    } catch (e) {
+        console.warn("[PromptBuilder]", detail);
     }
-    catch (e) { 
-        console.warn("Bad cache JSON – resetting."); 
-        widget.value="{}"; 
-        return {}; 
+}
+
+
+function getCache(widget) {
+    try {
+        return JSON.parse(widget?.value ?? "{}");
+    }
+    catch (e) {
+        console.warn("Bad cache JSON – resetting.");
+        showToast("Cached values were corrupted and have been reset. Widget states may need to be re-set.");
+        if (widget) widget.value = "{}";
+        return {};
     }
 }
 
@@ -45,6 +60,8 @@ function writeWidgetCacheValue(widget, name, value) {
 }
 
 
+const BOOL_LIKE = new Set(["true", "false", "yes", "no", "on", "off", "1", "0", "+", "t", "check"]);
+
 function parsePlaceholders(text) {
     if (!text) return [];
     const matches = text.matchAll(/\{\{([^}]*)\}\}/g);
@@ -52,9 +69,19 @@ function parsePlaceholders(text) {
 
     for (const m of matches) {
         const parts = m[1].split(":");
-        if (parts.length < 5) continue;
-        const [name, type = "STRING", value = "", def = "", use_input = "false"] = parts;
-        if (!name) continue;               // ignore malformed
+        if (parts.length < 4) continue;    // NAME:TYPE:VALUE:DEFAULT[:USE_INPUT]
+        const name = parts[0];
+        const type = parts[1] || "STRING";
+        const value = parts[2] || "";
+        let def, use_input;
+        if (parts.length >= 5 && BOOL_LIKE.has(parts[parts.length - 1].trim().toLowerCase())) {
+            use_input = parts[parts.length - 1];
+            def = parts.slice(3, -1).join(":");
+        } else {
+            def = parts.slice(3).join(":");
+            use_input = "false";
+        }
+        if (!name.trim()) continue;        // ignore malformed
         out.push({
             name: name.trim(),
             type: type.trim().toUpperCase(),
@@ -69,13 +96,25 @@ function parsePlaceholders(text) {
 
 function parseToggleTags(text) {
     if (!text) return [];
-    const regex = /\[\[([^:\]/]+)(?::([^\/\]]+))?\]\]([\s\S]*?)\[\[\/?\1\]\]/g;
+    const paired = /\[\[([^:\]/[]+)(?::([^\]/[]+))?\]\]([\s\S]*?)\[\[\/?\1\]\]/g;
     const out = [];
-    let m;
-    while ((m = regex.exec(text)) !== null) {
-        const name = m[1].trim();
-        const group = m[2] ? m[2].trim() : undefined;
-        if (name) out.push({ name, group });
+    const seen = new Set();
+    let scan = text;
+    let changed = true;
+    while (changed) {
+        changed = false;
+        paired.lastIndex = 0;
+        scan = scan.replace(paired, (full, name, group, inner) => {
+            name = name.trim();
+            const grp = group ? group.trim() : undefined;
+            const key = `${name} ${grp || ""}`;
+            if (name && !seen.has(key)) {
+                seen.add(key);
+                out.push({ name, group: grp });
+            }
+            changed = true;
+            return inner;   // unwrap to expose nested tags on the next pass
+        });
     }
     return out;
 }
@@ -85,8 +124,8 @@ function stripComments(text) {
     if (!text) return "";
     // Block comments: /* ... */
     text = text.replace(/\/\*[\s\S]*?\*\//g, "");
-    // Line comments starting with //
-    text = text.replace(/\/\/.*$/gm, "");
+    // Line comments starting with // (only at line start or after whitespace, so URLs stay intact)
+    text = text.replace(/(?:^|(?<=\s))\/\/.*$/gm, "");
     // Line comments starting with #
     text = text.replace(/^#.*$/gm, "");
     return text;
@@ -97,6 +136,21 @@ function parseExtraBlock(text) {
     const regex = /\[\%extra\%\]([\s\S]*?)\[\%\/?extra\%\]/;
     const m = regex.exec(text);
     return m ? m[1] : "";
+}
+
+function reconcileToggleGroups(node, cache) {
+    const seen = new Set();
+    for (const w of node.widgets) {
+        if (!w._spb_dynamic || w.type !== "toggle" || !w._spb_group) continue;
+        if (stringToBoolean(w.value)) {
+            if (seen.has(w._spb_group)) {
+                w.value = false;
+                cache[w.name] = false;
+            } else {
+                seen.add(w._spb_group);
+            }
+        }
+    }
 }
 
 
@@ -197,9 +251,11 @@ const widgetFactories = {
         const opts = {
             precision: 0
         };
-        if (p.value) opts.min = parseInt(p.value);
-        if (p.default) opts.max = parseInt(p.default);
-        const def = p.value || p.default || 0;
+        const min = parseInt(p.value);
+        const max = parseInt(p.default);
+        if (!Number.isNaN(min)) opts.min = min;
+        if (!Number.isNaN(max)) opts.max = max;
+        const def = !Number.isNaN(min) ? min : (!Number.isNaN(max) ? max : 0);
         const w = node.addWidget("number", p.name, def,
             v => writeWidgetCacheValue(getHiddenWidgetFromNode(node), p.name, v),
             opts);
@@ -319,41 +375,41 @@ app.registerExtension({
             
             // Store original size for toggling visibility
             const origPromptWidgetComputeSize = promptWidget.computeSize;
-            let savedNodeHeightDelta = 0;
-            
+
             function turnPromptWidgetVisible(v) {
-                if (!stringToBoolean(v) && !promptWidget.hidden) {
-                    promptWidget.hidden = true;
-                    promptWidget.computeSize = () => [0, -4];
-                    savedNodeHeightDelta = _this_node.size[1] - (promptWidget.computedHeight || _this_node.size[1]); 
-                    _this_node.size = [_this_node.size[0], _this_node.size[1] - savedNodeHeightDelta];
-                } else if (stringToBoolean(v) && promptWidget.hidden) {
-                    promptWidget.hidden = false;
-                    promptWidget.computeSize = origPromptWidgetComputeSize;
-                    _this_node.size = [_this_node.size[0], _this_node.size[1] + savedNodeHeightDelta];
-                }
+                const show = stringToBoolean(v);
+                if (show === !promptWidget.hidden) return;   
+                promptWidget.hidden = !show;
+                promptWidget.computeSize = show ? origPromptWidgetComputeSize : () => [0, -4];
+                const computed = _this_node.computeSize?.();
+                if (computed) _this_node.setSize([_this_node.size[0], computed[1]]);
+                _this_node.setDirtyCanvas(true, true);
             }
-            
+
             function getToggleDrawValue(widget, option_on_text = 'enabled', option_off_text = 'ignored') {
                 return (ctx, x) => {
-                    ctx.fillStyle = widget.value ? widget.text_color : widget.secondary_text_color;
+                    const baseline = typeof widget.labelBaseline === "number" ? widget.labelBaseline : 14;
+                    ctx.fillStyle = (widget.value ? widget.text_color : widget.secondary_text_color) || "#bbb";
                     ctx.textAlign = 'right';
-                    ctx.fontVariantCaps = "all-petite-caps";
+                    const hasCaps = "fontVariantCaps" in ctx;
+                    if (hasCaps) ctx.fontVariantCaps = "all-petite-caps";
                     const value = widget.value
-                        ? widget.options.on || option_on_text
-                        : widget.options.off || option_off_text;
-                    ctx.fillText(value, x, widget.labelBaseline);
-                    ctx.fontVariantCaps = "normal";
+                        ? (widget.options?.on || option_on_text)
+                        : (widget.options?.off || option_off_text);
+                    ctx.fillText(value, x, baseline);
+                    if (hasCaps) ctx.fontVariantCaps = "normal";
                 };
             }
-            
+
             function getToggleDrawLabel(widget) {
                 return (ctx, x) => {
-                    ctx.fillStyle = widget.secondary_text_color;
-                    ctx.fontVariantCaps = "all-petite-caps";
-                    const { displayName } = widget
-                    if (displayName) ctx.fillText(displayName, x, widget.labelBaseline);
-                    ctx.fontVariantCaps = "normal";
+                    const baseline = typeof widget.labelBaseline === "number" ? widget.labelBaseline : 14;
+                    ctx.fillStyle = widget.secondary_text_color || "#999";
+                    const hasCaps = "fontVariantCaps" in ctx;
+                    if (hasCaps) ctx.fontVariantCaps = "all-petite-caps";
+                    const { displayName } = widget;
+                    if (displayName) ctx.fillText(displayName, x, baseline);
+                    if (hasCaps) ctx.fontVariantCaps = "normal";
                 };
             }
             
@@ -393,7 +449,7 @@ app.registerExtension({
             }
 
             function connectOrAddInput(node, widget, i_type) {
-                if (!node && !widget && !widget.name && !i_type) return ;
+                if (!node || !widget || !widget.name || !i_type) return ;
                 for (let i = node.inputs.length - 1; i >= 0; i--) {
                     if (node.inputs[i] && node.inputs[i].widget?.name === widget.name) {
                         if (node.inputs[i].widget._spb_dynamic !== true) {
@@ -468,8 +524,12 @@ app.registerExtension({
                     const p = { name: t.name, value: true, default: true, group: t.group };
                     const w = widgetFactories.toggle(node, p);
                     node._spb_dynamicNames.add(t.name);
-                    if (w && !cache[w.name]) cache[w.name] = w.value;
-                    w.label = `[[ ${t.name} ]]`;
+                    if (w) {
+                        // Restore a previously saved state instead of discarding it (incl. saved `false`).
+                        if (w.name in cache) w.value = stringToBoolean(cache[w.name]);
+                        else cache[w.name] = w.value;
+                        w.label = `[[ ${t.name} ]]`;
+                    }
                 });
                 
                 node.setDirtyCanvas(true, true);
@@ -523,7 +583,11 @@ app.registerExtension({
                     const i_type = mapInputsType(p.type);
                     const w = createDynamicWidget(node, p);
                     node._spb_dynamicNames.add(p.name);
-                    if (w && !cache[w.name]) cache[w.name] = w.value;
+                    if (w) {
+                        // Restore a previously saved value instead of discarding it (incl. saved 0 / "" / false).
+                        if (w.name in cache) w.value = w.type === "toggle" ? stringToBoolean(cache[w.name]) : cache[w.name];
+                        else cache[w.name] = w.value;
+                    }
 
                     if (p.use_input === true && w) {
                         connectOrAddInput(node, w, i_type);
@@ -531,6 +595,7 @@ app.registerExtension({
 
                 });
 
+                reconcileToggleGroups(node, cache);
                 setCache(hidden_widget, cache);
                 node.setDirtyCanvas(true, true);
             }
