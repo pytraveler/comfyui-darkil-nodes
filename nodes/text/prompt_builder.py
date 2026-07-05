@@ -8,11 +8,6 @@ from .utilities import (
     strip_all_comments,
 )
 
-from ..global_utils import (
-    load_localized_help_text as localize_help_text,
-    class_name_to_node_name as def_node_name,
-)
-
 log = logging.getLogger(__name__)
 
 
@@ -70,7 +65,6 @@ class SimplePromptBuilder:
 - Outputs:
    * `compiled_prompt` – the processed main prompt (empty if disabled).
    * `extra_compiled` – the processed extra block (empty if absent or disabled).
-   * `❓help` – this help text.
 
 All other text remains unchanged in the compiled output."""
 
@@ -86,8 +80,8 @@ All other text remains unchanged in the compiled output."""
             }
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING",)
-    RETURN_NAMES = ("compiled_prompt", "extra_compiled", "❓help",)
+    RETURN_TYPES = ("STRING", "STRING",)
+    RETURN_NAMES = ("compiled_prompt", "extra_compiled",)
     OUTPUT_NODE = False
 
     @staticmethod
@@ -275,10 +269,4 @@ All other text remains unchanged in the compiled output."""
         compiled_prompt = self._process_directives(compiled_prompt)
         extra_compiled = self._process_directives(extra_compiled)
 
-        _help_text = localize_help_text(
-            def_node_name(SimplePromptBuilder),
-            default=SimplePromptBuilder.HELP_TEXT,
-            locale_str=kwargs.get("COMFY_LOCALE_SETTING", "en")
-        )
-
-        return (compiled_prompt, extra_compiled, _help_text,)
+        return (compiled_prompt, extra_compiled,)

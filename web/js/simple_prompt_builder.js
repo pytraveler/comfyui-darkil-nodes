@@ -1,11 +1,93 @@
 import { app } from "../../scripts/app.js";
 import { setLocaleSetting } from "./utils.js";
+import { attachSyntaxEditor } from "./prompt_builder_editor.js";
+import { RESERVED_NAMES } from "./prompt_builder_grammar.js";
+import { getStrings } from "./prompt_builder_i18n.js";
 
 const NODE_NAME = "darkilPromptBuilder";
 const CACHE_KEY = "cachedValues";
 const TOGGLE_KEY = "promptVisible";
 const EXTRA_TOGGLE_KEY = "extraActive";
 const TEXT_TOGGLE_KEY = "promptTextActive";
+
+const SWITCHBAR_H = 26;
+const SWITCHBAR_PAD = 8;
+
+
+function ignoreInjectedWidth(w) {
+    Object.defineProperty(w, "width", { configurable: true, get() {}, set() {} });
+    return w;
+}
+
+
+function roundRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.max(0, Math.min(r, h / 2, w / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+}
+
+
+function drawSwitchBar(ctx, width, y, height, defs, states) {
+    const pad = SWITCHBAR_PAD;
+    const usableW = Math.max(0, width - 2 * pad);
+    const cellW = defs.length ? usableW / defs.length : usableW;
+    const centerY = y + height / 2;
+    const trackW = 24;
+    const trackH = 13;
+    const knobR = trackH / 2 - 2;
+    const gap = 6;
+    const secondary = window.LiteGraph?.WIDGET_SECONDARY_TEXT_COLOR || "#9aa5b1";
+
+    ctx.save();
+    roundRectPath(ctx, pad, y + 3, usableW, height - 6, 6);
+    ctx.fillStyle = "rgba(255,255,255,0.045)";
+    ctx.fill();
+
+    ctx.font = "11px sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    for (let i = 0; i < defs.length; i++) {
+        const def = defs[i];
+        const on = !!states[def.key];
+        const cellX = pad + i * cellW;
+        const labelW = ctx.measureText(def.label).width;
+        const groupW = trackW + gap + labelW;
+        const gx = cellX + Math.max(4, (cellW - groupW) / 2);
+
+        roundRectPath(ctx, gx, centerY - trackH / 2, trackW, trackH, trackH / 2);
+        if (on) { ctx.globalAlpha = 0.5; ctx.fillStyle = def.color; }
+        else { ctx.globalAlpha = 1; ctx.fillStyle = "#3a3f47"; }
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        const knobX = on ? gx + trackW - trackH / 2 : gx + trackH / 2;
+        ctx.beginPath();
+        ctx.arc(knobX, centerY, knobR, 0, Math.PI * 2);
+        ctx.fillStyle = on ? "#eef2f6" : "#8a9199";
+        ctx.fill();
+
+        ctx.fillStyle = on ? def.color : secondary;
+        ctx.fillText(def.label, gx + trackW + gap, centerY + 0.5);
+    }
+    ctx.restore();
+}
+
+
+function switchCellAt(localX, localY, width, height, count) {
+    if (localY < 0 || localY > height || count <= 0) return -1;
+    const pad = SWITCHBAR_PAD;
+    const usableW = Math.max(0, width - 2 * pad);
+    if (localX < pad || localX > pad + usableW) return -1;
+    const cellW = usableW / count;
+    if (cellW <= 0) return -1;
+    const idx = Math.floor((localX - pad) / cellW);
+    return (idx < 0 || idx >= count) ? -1 : idx;
+}
 
 
 function stringToBoolean(v) {
@@ -121,6 +203,7 @@ function parseToggleTags(text) {
 
 
 function stripComments(text) {
+    if (typeof text !== "string") return text == null ? "" : String(text);
     if (!text) return "";
     // Block comments: /* ... */
     text = text.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -138,6 +221,9 @@ function parseExtraBlock(text) {
     return m ? m[1] : "";
 }
 
+
+// Enforce mutual exclusivity of grouped toggles: within a group keep the first
+// enabled one (document order) and disable the rest. Used to repair state on load.
 function reconcileToggleGroups(node, cache) {
     const seen = new Set();
     for (const w of node.widgets) {
@@ -375,74 +461,121 @@ app.registerExtension({
             
             // Store original size for toggling visibility
             const origPromptWidgetComputeSize = promptWidget.computeSize;
+            let syntaxEditor = null;
+            let savedShownHeight = null;
+            let promptShown = true;
+            let applyingSize = false;
+            let editorInitialized = false;
+
+            // Persist the editor height in node.properties so it survives a reload.
+            // Single writer: only a real user resize (after init) records the height —
+            // no computeSize-based thresholds, they shift while widgets populate.
+            function saveEditorHeight(h) {
+                if (!_this_node.properties) _this_node.properties = {};
+                _this_node.properties.editorHeight = h;
+            }
+            function readEditorHeight() {
+                const h = Number(_this_node.properties?.editorHeight);
+                return Number.isFinite(h) && h > 40 ? h : null;
+            }
+            // Best-known shown height: this session's value, then the persisted one,
+            // else a floor (widget layout + a comfortable editor allowance).
+            function desiredShownHeight() {
+                const known = savedShownHeight ?? readEditorHeight();
+                if (known != null) return known;
+                const base = (_this_node.computeSize?.()?.[1]) || 200;
+                return base + 160;
+            }
+
+            const origOnResize = this.onResize;
+            this.onResize = function (size) {
+                origOnResize?.call(this, size);
+                if (editorInitialized && !applyingSize && promptShown && size) {
+                    savedShownHeight = size[1];
+                    saveEditorHeight(size[1]);
+                }
+            };
 
             function turnPromptWidgetVisible(v) {
                 const show = stringToBoolean(v);
-                if (show === !promptWidget.hidden) return;   
+                syntaxEditor?.setVisible(show);
+                if (show === promptShown) return;   // already in the desired state
+                promptShown = show;
                 promptWidget.hidden = !show;
                 promptWidget.computeSize = show ? origPromptWidgetComputeSize : () => [0, -4];
-                const computed = _this_node.computeSize?.();
-                if (computed) _this_node.setSize([_this_node.size[0], computed[1]]);
+                applyingSize = true;
+                if (show) {
+                    const h = desiredShownHeight();
+                    _this_node.setSize([_this_node.size[0], h]);
+                    savedShownHeight = h;
+                } else {
+                    // Collapse to just the remaining widgets; keep the user width.
+                    const computed = _this_node.computeSize?.();
+                    if (computed) _this_node.setSize([_this_node.size[0], computed[1]]);
+                }
+                applyingSize = false;
                 _this_node.setDirtyCanvas(true, true);
             }
 
-            function getToggleDrawValue(widget, option_on_text = 'enabled', option_off_text = 'ignored') {
-                return (ctx, x) => {
-                    const baseline = typeof widget.labelBaseline === "number" ? widget.labelBaseline : 14;
-                    ctx.fillStyle = (widget.value ? widget.text_color : widget.secondary_text_color) || "#bbb";
-                    ctx.textAlign = 'right';
-                    const hasCaps = "fontVariantCaps" in ctx;
-                    if (hasCaps) ctx.fontVariantCaps = "all-petite-caps";
-                    const value = widget.value
-                        ? (widget.options?.on || option_on_text)
-                        : (widget.options?.off || option_off_text);
-                    ctx.fillText(value, x, baseline);
-                    if (hasCaps) ctx.fontVariantCaps = "normal";
-                };
+            // Compact inline switch bar — replaces the three full-width toggle
+            // widgets ("Prompt visible", "Prompt enabled", "Extra enabled") with a
+            // single row of three switches so they read as one distinct control.
+            const switchStates = {
+                [TOGGLE_KEY]: true,
+                [TEXT_TOGGLE_KEY]: true,
+                [EXTRA_TOGGLE_KEY]: false,
+            };
+
+            function currentLocale() {
+                try { return app.ui.settings.getSettingValue("Comfy.Locale") || "en"; } catch (e) { return "en"; }
             }
 
-            function getToggleDrawLabel(widget) {
-                return (ctx, x) => {
-                    const baseline = typeof widget.labelBaseline === "number" ? widget.labelBaseline : 14;
-                    ctx.fillStyle = widget.secondary_text_color || "#999";
-                    const hasCaps = "fontVariantCaps" in ctx;
-                    if (hasCaps) ctx.fontVariantCaps = "all-petite-caps";
-                    const { displayName } = widget;
-                    if (displayName) ctx.fillText(displayName, x, baseline);
-                    if (hasCaps) ctx.fontVariantCaps = "normal";
-                };
+            function buildSwitchDefs(locale) {
+                const s = getStrings(locale).ui.switches;
+                return [
+                    { key: TOGGLE_KEY, label: s.view, color: "#4aa3df", onToggle: v => turnPromptWidgetVisible(v) },
+                    { key: TEXT_TOGGLE_KEY, label: s.main, color: "#5bbf6a" },
+                    { key: EXTRA_TOGGLE_KEY, label: s.extra, color: "#e0913a" },
+                ];
             }
-            
-            
-            // Toggle for showing/hiding the main prompt widget
-            const toggle_prompt_widget = this.addWidget("toggle", TOGGLE_KEY, true, 
-                v => {
-                    writeWidgetCacheValue(getHiddenWidgetFromNode(_this_node), TOGGLE_KEY, v);
-                    turnPromptWidgetVisible(v);
-                });
-            toggle_prompt_widget.label = "[Main] Prompt visibled";
-            toggle_prompt_widget.drawValue = getToggleDrawValue(toggle_prompt_widget, 'shown', 'hidden');
-            toggle_prompt_widget.drawLabel = getToggleDrawLabel(toggle_prompt_widget);
-            
-            // Prompt block activation toggle
-            const promptToggleTextWidget = this.addWidget("toggle", TEXT_TOGGLE_KEY, true,
-                v => {
-                    writeWidgetCacheValue(getHiddenWidgetFromNode(_this_node), TEXT_TOGGLE_KEY, v);
-                });
-            promptToggleTextWidget.label = "[Main] Prompt enabled";
-            promptToggleTextWidget.drawValue = getToggleDrawValue(promptToggleTextWidget);
-            promptToggleTextWidget.drawLabel = getToggleDrawLabel(promptToggleTextWidget);
-            writeWidgetCacheValue(hidden_widget, TEXT_TOGGLE_KEY, promptToggleTextWidget.value);
-            
-            // Extra block activation toggle
-            const extraToggleWidget = this.addWidget("toggle", EXTRA_TOGGLE_KEY, false,
-                v => {
-                    writeWidgetCacheValue(getHiddenWidgetFromNode(_this_node), EXTRA_TOGGLE_KEY, v);
-                });
-            extraToggleWidget.label = "[Main] Extra enabled";
-            extraToggleWidget.drawValue = getToggleDrawValue(extraToggleWidget);
-            extraToggleWidget.drawLabel = getToggleDrawLabel(extraToggleWidget);
-            writeWidgetCacheValue(hidden_widget, EXTRA_TOGGLE_KEY, extraToggleWidget.value);
+
+            let switchDefs = buildSwitchDefs(currentLocale());
+
+            const switchBar = {
+                name: "_spb_switchbar",
+                type: "custom",
+                value: "",
+                serialize: false,
+                _localeKey: currentLocale(),
+                computeSize(width) { return [width, SWITCHBAR_H]; },
+                draw(ctx, node, widgetWidth, widgetY, height) {
+                    this.last_y = widgetY;
+                    this.last_width = widgetWidth;
+                    const loc = currentLocale();
+                    if (loc !== this._localeKey) { this._localeKey = loc; switchDefs = buildSwitchDefs(loc); }
+                    drawSwitchBar(ctx, widgetWidth, widgetY, SWITCHBAR_H, switchDefs, switchStates);
+                },
+                mouse(event, pos, node) {
+                    const type = event.type || "";
+                    if (!type.endsWith("down")) return false;
+                    const width = this.last_width || node.size[0];
+                    const localY = pos[1] - (this.last_y ?? 0);
+                    const idx = switchCellAt(pos[0], localY, width, SWITCHBAR_H, switchDefs.length);
+                    if (idx < 0) return false;
+                    const def = switchDefs[idx];
+                    const nv = !switchStates[def.key];
+                    switchStates[def.key] = nv;
+                    writeWidgetCacheValue(getHiddenWidgetFromNode(node), def.key, nv);
+                    if (def.onToggle) def.onToggle(nv);
+                    node.setDirtyCanvas(true, true);
+                    return true;
+                },
+            };
+
+            this.widgets.push(ignoreInjectedWidth(switchBar));
+            writeWidgetCacheValue(hidden_widget, TOGGLE_KEY, switchStates[TOGGLE_KEY]);
+            writeWidgetCacheValue(hidden_widget, TEXT_TOGGLE_KEY, switchStates[TEXT_TOGGLE_KEY]);
+            writeWidgetCacheValue(hidden_widget, EXTRA_TOGGLE_KEY, switchStates[EXTRA_TOGGLE_KEY]);
             
             if (!this._spb_dynamicNames) {
                 this._spb_dynamicNames = new Set();
@@ -462,7 +595,12 @@ app.registerExtension({
             }
 
             function updateDynamicWidgets(node) {
-                const cleanPrompt = stripComments(promptWidget.value);
+                const rawPrompt = promptWidget.value;
+                if (typeof rawPrompt !== "string") {
+                    if (rawPrompt != null) console.warn("[PromptBuilder] prompt value is not a string, skipping update:", typeof rawPrompt, rawPrompt);
+                    return;
+                }
+                const cleanPrompt = stripComments(rawPrompt);
                 const placeholders = parsePlaceholders(cleanPrompt);
                 const toggles = parseToggleTags(cleanPrompt);
                 
@@ -483,9 +621,11 @@ app.registerExtension({
                     }
                 }
                 
-                const allPlaceholders = [...placeholders, ...extraPlaceholders];
-                const allToggles = [...toggles, ...extraToggles];
-                
+                // Reserved names collide with the node's own widgets (e.g. "prompt"),
+                // which corrupts ComfyUI's by-name widget value store -> skip them.
+                const allPlaceholders = [...placeholders, ...extraPlaceholders].filter(p => !RESERVED_NAMES.has(p.name));
+                const allToggles = [...toggles, ...extraToggles].filter(t => !RESERVED_NAMES.has(t.name));
+
                 const neededNames = new Set([
                     ...allToggles.map(t => t.name),
                     ...allPlaceholders.map(p => p.name)
@@ -601,11 +741,14 @@ app.registerExtension({
             }
             
             function hidePromptWidgetIfNeed() {
-                if (toggle_prompt_widget) {
-                    const widget_index = _this_node.widgets.findIndex(w => w?.name === toggle_prompt_widget.name);
-                    const saved_value = _this_node.widgets_values && widget_index !== -1 ? _this_node.widgets_values[widget_index] : false;
-                    turnPromptWidgetVisible(saved_value);
-                }
+                // Source of truth is the cache (written by the switch callback), NOT
+                // widgets_values by index — dynamic widgets shift indices and desync it.
+                const cache = getCache(hidden_widget);
+                const v = cache[TOGGLE_KEY] !== undefined
+                    ? stringToBoolean(cache[TOGGLE_KEY])
+                    : switchStates[TOGGLE_KEY];
+                switchStates[TOGGLE_KEY] = v;
+                turnPromptWidgetVisible(v);
             }
             
             // Restore cached values and extra toggle state on load
@@ -628,13 +771,13 @@ app.registerExtension({
                         }
                         
                         // Restore text block toggle state
-                        if (promptToggleTextWidget && cache[TEXT_TOGGLE_KEY] !== undefined) {
-                            promptToggleTextWidget.value = stringToBoolean(cache[TEXT_TOGGLE_KEY]);
+                        if (cache[TEXT_TOGGLE_KEY] !== undefined) {
+                            switchStates[TEXT_TOGGLE_KEY] = stringToBoolean(cache[TEXT_TOGGLE_KEY]);
                         }
-                        
+
                         // Restore extra block toggle state
-                        if (extraToggleWidget && cache[EXTRA_TOGGLE_KEY] !== undefined) {
-                            extraToggleWidget.value = stringToBoolean(cache[EXTRA_TOGGLE_KEY]);
+                        if (cache[EXTRA_TOGGLE_KEY] !== undefined) {
+                            switchStates[EXTRA_TOGGLE_KEY] = stringToBoolean(cache[EXTRA_TOGGLE_KEY]);
                         }
                         
                         setCache(hidden_widget, cache);
@@ -655,6 +798,29 @@ app.registerExtension({
                 initValues();
                 updateDynamicWidgets(_this_node);
                 setLocaleSetting(_this_node);
+                try {
+                    let locale = "en";
+                    try { locale = app.ui.settings.getSettingValue("Comfy.Locale") || "en"; } catch (e) {}
+                    syntaxEditor = attachSyntaxEditor(_this_node, promptWidget, { locale });
+                } catch (e) {
+                    console.warn("[PromptBuilder] syntax editor unavailable:", e);
+                }
+                // On load: node.size is ComfyUI's authoritative saved height, so trust
+                // it and only intervene if the editor is actually collapsed. Remember
+                // the persisted height for the hidden case (to restore it on show).
+                if (promptShown) {
+                    const base = (_this_node.computeSize?.()?.[1]) || 200;
+                    if (_this_node.size[1] < base + 40) {
+                        applyingSize = true;
+                        _this_node.setSize([_this_node.size[0], Math.max(desiredShownHeight(), base + 160)]);
+                        applyingSize = false;
+                        _this_node.setDirtyCanvas(true, true);
+                    }
+                    savedShownHeight = _this_node.size[1];
+                } else {
+                    savedShownHeight = readEditorHeight();
+                }
+                editorInitialized = true;
             });
             return ret;
         };

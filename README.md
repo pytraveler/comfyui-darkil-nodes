@@ -1,5 +1,7 @@
 # Custom ComfyUI Nodes
 
+Languages: **English** · [Русский](README_RU.MD)
+
 This repository contains custom nodes for ComfyUI that extend functionality for workflows.
 
 ## Available Nodes
@@ -45,17 +47,24 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
 ![Dynamic prompt builder 1](docs/images/node_prompt_build_1.png)
 ![Dynamic prompt builder 2](docs/images/node_prompt_build_2.png)
 - **Category**: darkilNodes/text
-- **Description**: Dynamically builds prompts from text inputs with various formatting options.
+- **Description**: Builds prompts from a small template language. Placeholders and toggle tags written in the prompt text spawn matching widgets on the node, so one prompt can be reconfigured live without editing the text.
 - **Features**:
-  - Supports multiple input types (text, integers, floats)
-  - Configurable separators and prefixes/suffixes
-  - Conditional output based on input presence
-  - Automatic handling of empty/whitespace inputs
+  - **Placeholders** `{{NAME:TYPE:VALUE:DEFAULT:USE_INPUT}}` create dynamic widgets. `TYPE` = STRING, INT, FLOAT, COMBO, SLIDER, KNOB; `USE_INPUT` (`true`) exposes an input socket for the value.
+  - **Toggle tags** `[[TAG]]…[[/TAG]]` keep or drop the wrapped block via a per-tag switch. `[[TAG:GROUP]]` makes tags sharing a `GROUP` mutually exclusive (radio behavior). Tags can be nested.
+  - **Extra block** `[%extra%]…[%/extra%]` is compiled to a second output; **Vars block** `[%vars%]…[%/vars%]` is ignored by the backend (a notes/scratch area).
+  - **Comments** removed before processing: `// …`, `# …`, `/* … */`.
+  - **Spaceless blocks** `{%spaceless%}…{%spaceless stop%}` collapse whitespace, and **formatting directives** (`lower`, `upper`, `title`, `sentence`, `trim`, `dedent`, `list`, `list_and`, …) transform the wrapped text and can be nested.
+  - **Syntax-highlighting editor**: color highlighting, an *Insert* / *Vars* menu, caret-context hints, validation underlines, and keyboard autocomplete (EN/RU localized).
+  - **Compact switch bar**: three inline switches on one row — **EDITOR** (show/hide the editor), **PROMPT** (process the main prompt), **EXTRA** (process the extra block).
 - **Inputs**:
-  - `text` (STRING): Text input to process
-  - `PROMPT VISIBLED` (BOOL): text widget visible
-  - `PROMPT ENABLED` (BOOL): compiled_prompt output active
-  - `EXTRA ENABLED` (BOOL): extra_compiled output active
+  - `prompt` (STRING, multiline): the prompt template with placeholders, tags, blocks and directives
+- **UI switches** (client-side, one compact row):
+  - **EDITOR**: show/hide the prompt editor widget
+  - **PROMPT**: enable/disable processing of the main prompt (`compiled_prompt`)
+  - **EXTRA**: enable/disable processing of the extra block (`extra_compiled`)
+- **Outputs**:
+  - `compiled_prompt` (STRING): the processed main prompt (empty when **PROMPT** is off)
+  - `extra_compiled` (STRING): the processed extra block (empty when absent or **EXTRA** is off)
 
 #### 4. Text is empty [darkilNodes]
 ![Text is empty](docs/images/node_text_is_empty.png)
