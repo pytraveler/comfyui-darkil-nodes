@@ -10,7 +10,6 @@ from typing import (
     Optional, 
     Tuple, 
 )
-from functools import partial
 from itertools import compress
 
 import folder_paths  # ComfyUI imports
@@ -80,8 +79,16 @@ The third output is this help string for reference."""
     @staticmethod
     def _resolve_path(name: str) -> Optional[Tuple[str, str]]:
         candidates = folder_paths.get_filename_list("loras")
-        for fn in candidates:
-            if name in fn: 
+
+        def _stem(fn: str) -> str:
+            return os.path.splitext(os.path.basename(fn))[0]
+
+        exact = [fn for fn in candidates if fn == name or os.path.basename(fn) == name]
+        by_stem = [fn for fn in candidates if _stem(fn) == name]
+        substr = [fn for fn in candidates if name in fn]
+
+        for group in (exact, by_stem, substr):
+            for fn in group:
                 try:
                     full_path = folder_paths.get_full_path("loras", fn)
                     return full_path, fn
@@ -103,7 +110,7 @@ The third output is this help string for reference."""
         low_mem_load: bool,
         merge_loras: bool,
     ) -> Optional[Dict[str, Any]]:
-        sstrip = partial(lambda _: _.strip(" \t<>"))
+        sstrip = lambda _: _.strip(" \t<>")
         if ":" in raw:
             name_part, strength_part = map(sstrip, raw.rsplit(":", 1))
             try:
@@ -187,7 +194,7 @@ The third output is this help string for reference."""
             lower_clean_raw = clean_raw.lower().strip()
             low_lora_triggers = ["l<<", "l<", "<l:lora", "<l:", "<low:", "low:"]
             high_lora_triggers = ["h<<", "h<", "<h:lora", "<h:", "<high:", "high:"]
-            raw_starts = partial(lower_clean_raw.startswith)
+            raw_starts = lower_clean_raw.startswith
             low_found = [raw_starts(t) for t in low_lora_triggers]
             high_found = [raw_starts(t) for t in high_lora_triggers]
             if any(high_found):

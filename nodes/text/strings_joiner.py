@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Dict, Tuple
 
 from ..global_utils import (
@@ -87,22 +88,17 @@ class StringsJoiner:
         """
         if not text:
             return text
-            
-        result = text
-        # Replace common escape sequences
+
         escape_map = {
-            "\\n": "\n",
-            "\\r": "\r",
-            "\\t": "\t",
-            "\\\\": "\\",
-            "\\\"": "\"",
-            "\\'": "'"
+            "n": "\n",
+            "r": "\r",
+            "t": "\t",
+            "\\": "\\",
+            "\"": "\"",
+            "'": "'",
         }
-        
-        for escaped, char in escape_map.items():
-            result = result.replace(escaped, char)
-            
-        return result
+
+        return re.sub(r"\\(.)", lambda m: escape_map.get(m.group(1), m.group(0)), text)
 
 
 NODE_CLASS_MAPPINGS = {

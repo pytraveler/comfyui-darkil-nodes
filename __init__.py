@@ -14,6 +14,8 @@ from .nodes.text.simple import (
 from .nodes.logic.multi_toggles import MultiToggles
 from .nodes.logic.custom_combo import CustomCombo
 from .nodes.logic.constant_setter import ConstantSetter
+from .nodes.logic.any_switch import AnySwitch
+from .nodes.logic.show_any import ShowAny
 from .nodes.logic.model_load_later import (
     UNETLoaderLater,
     CLIPLoaderLater,
@@ -44,6 +46,8 @@ NODE_CLASS_MAPPINGS = {
     as_node_name(MultiToggles): MultiToggles,
     as_node_name(CustomCombo): CustomCombo,
     as_node_name(ConstantSetter): ConstantSetter,
+    as_node_name(AnySwitch): AnySwitch,
+    as_node_name(ShowAny): ShowAny,
     as_node_name(UNETLoaderLater): UNETLoaderLater,
     as_node_name(CLIPLoaderLater): CLIPLoaderLater,
     as_node_name(DualCLIPLoaderLater): DualCLIPLoaderLater,
@@ -75,6 +79,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     as_node_name(MultiToggles): "Multi toggles [darkilNodes]",
     as_node_name(CustomCombo): "Custom combo box [darkilNodes]",
     as_node_name(ConstantSetter): "Constant Setter [darkilNodes]",
+    as_node_name(AnySwitch): "Any Switch [darkilNodes]",
+    as_node_name(ShowAny): "Show Any [darkilNodes]",
     as_node_name(UNETLoaderLater): "Diffusion Model Load Later [darkilNodes]",
     as_node_name(CLIPLoaderLater): "CLIP Load Later [darkilNodes]",
     as_node_name(DualCLIPLoaderLater): "DualCLIP Load Later [darkilNodes]",

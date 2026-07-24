@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 
 def clean_memory(empty_cache, gc_collect, unload_models):
     if empty_cache:
-            model_management.soft_empty_cache()
+        model_management.soft_empty_cache()
     if unload_models:
         model_management.unload_all_models()
     if gc_collect:
@@ -44,7 +44,7 @@ class UNETLoaderLater:
     def load_unet_later(self, any_trigger,  unet_name, weight_dtype,
                         empty_cache, gc_collect, unload_models):
         
-        log.warning(f"[darkilNodes.UNETLoaderLater] Model 'unet_name' loading now...")
+        log.info(f"[darkilNodes.UNETLoaderLater] Model '{unet_name}' loading now...")
         
         model_options = {}
         if weight_dtype == "fp8_e4m3fn":

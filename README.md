@@ -248,6 +248,43 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - `values`: Semicolon-separated list for COMBO type
   - `input_enable`: Enable input slot for value conversion
 
+#### 11. Any Switch [darkilNodes]
+![Any Switch](docs/images/node_switch_any.png)
+- **Category**: darkilNodes/logic
+- **Description**: Passes through the first input that is both connected and enabled. Tolerant like rgthree's Any Switch — it never errors when nothing is connected.
+- **Features**:
+  - Dynamic `any_*` inputs — a new slot appears once the last one is filled; extra empty slots are trimmed automatically.
+  - A per-input checkbox in the right column: uncheck it to skip that input without disconnecting the upstream node.
+  - Inputs are scanned top to bottom; the first enabled + connected one is returned. Falsy-but-valid values (`0`, empty string) still pass through.
+  - If nothing qualifies, the node outputs `None` instead of raising.
+  - Any-type input and output (`*`) — accepts and forwards any data type.
+- **Inputs**:
+  - `any_1`, `any_2`, … (ANY): the values to switch between (added dynamically)
+- **Outputs**:
+  - `value` (ANY): the first enabled + connected input (or `None`)
+
+#### 12. Show Any [darkilNodes]
+![Show Any](docs/images/node_show_any.png)
+- **Category**: darkilNodes/logic
+- **Description**: A universal preview node that renders whatever is connected, chosen by the value's runtime type, and passes the value through unchanged on `value`.
+- **Features** — renders by detected type:
+  - **Text / number** — selectable, copyable text.
+  - **JSON** (a dict, or a string that parses as JSON) — a collapsible tree with a **Tree / Raw** toggle.
+  - **Boolean** — a large green check / red cross.
+  - **Number list** (`[1, 2, 3]`, or a numeric-array string) — a read-only equalizer chart with value labels and auto-range.
+  - **Matrix / list of lists** (`[[...], [...]]`) — stacked mini-equalizers, 10 per page with prev/next pagination.
+  - **Image(s) / mask** — inline image preview(s); masks are shown as grayscale.
+  - **Video** — an HTML `<video>` player.
+  - **Audio** — an HTML `<audio>` player.
+  - **Markdown** — rendered markdown (choose **Markdown** in the `view` combo).
+  - Text / JSON / markdown / image / video panels **fill the node** as it is resized.
+- **UI**:
+  - `view` (COMBO, shown for strings): **Auto / Text / Markdown / JSON**. Auto shows a JSON tree, or an equalizer for numeric arrays, otherwise plain text.
+- **Inputs**:
+  - `source` (ANY, optional): the value to display
+- **Outputs**:
+  - `value` (ANY): the input passed through unchanged
+
 ### WAN Nodes
 
 #### 1. I2V Encode with Middle Frame [darkilNodes]

@@ -185,12 +185,7 @@ class ConstantSetter:
 
         # No input or input disabled - use the configured constant value from properties
         try:
-            # The actual constant value should be stored in node's widget values
-            # For now, we'll use the default_value as the constant
-            constant_value = kwargs.get("default_value", self._get_property("constant_value", default_value, properties))
-            
-            # Try to convert the constant value to proper type
-            result = self._convert_to_type(constant_value, const_type, minimum, maximum, values_str)
+            result = self._convert_to_type(default_value, const_type, minimum, maximum, values_str)
             return (result,)
         except Exception as e:
             log.warning(f"[ConstantSetter] Error getting constant value: {e}")
