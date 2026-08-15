@@ -14,6 +14,19 @@ const EQ_PAD_BOTTOM = 16;
 const STACK_ROW_H = 64;
 const STACK_PAGE = 10;
 const STACK_BTN_H = 24;
+const BAR_NAME = "showany_history";
+const BAR_HEIGHT = 22;
+const HISTORY_LIMIT = 20;
+const HISTORY_NODES = 64;
+const PERSIST_TEXT = 8192;
+const PERSIST_POINTS = 512;
+const PERSIST_SERIES = 32;
+const PROP_ID = "showany_id";
+const PROP_LAST = "showany_last";
+const PROP_KEEP = "showany_keep";
+
+const history = new Map();
+const claimed = new Map();
 
 function viewURL(info) {
     const params = new URLSearchParams({
@@ -31,13 +44,158 @@ function fmtNum(v) {
     return String(Math.round(v * 1000) / 1000);
 }
 
-function ignoreInjectedWidth(w) {
+function asCanvasWidget(w) {
+    if (!w.options) w.options = {};
     Object.defineProperty(w, "width", { configurable: true, get() {}, set() {} });
     return w;
 }
 
 function getWidget(node, name) {
     return node.widgets?.find(w => w.name === name);
+}
+
+function newId() {
+    try {
+        if (crypto?.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isLive(node) {
+    try {
+        return !!node && app.graph?.getNodeById?.(node.id) === node;
+    } catch (e) {
+        return false;
+    }
+}
+
+function nodeKey(node) {
+    if (!node.properties) node.properties = {};
+    let id = node.properties[PROP_ID];
+    const owner = id ? claimed.get(id) : null;
+    if (!id || (owner && owner !== node && isLive(owner))) {
+        id = newId();
+        node.properties[PROP_ID] = id;
+    }
+    claimed.set(id, node);
+    return id;
+}
+
+function getHistory(node) {
+    const key = nodeKey(node);
+    let h = history.get(key);
+    if (!h) {
+        h = { entries: [], index: -1 };
+        history.set(key, h);
+        while (history.size > HISTORY_NODES) {
+            const oldest = history.keys().next().value;
+            if (oldest === undefined) break;
+            history.delete(oldest);
+        }
+    }
+    return h;
+}
+
+function currentEntry(node) {
+    const h = getHistory(node);
+    return h.index >= 0 ? h.entries[h.index] : null;
+}
+
+function shrink(payload) {
+    const p = { ...payload };
+    if (typeof p.text === "string" && p.text.length > PERSIST_TEXT) {
+        p.text = p.text.slice(0, PERSIST_TEXT);
+        p.truncated = true;
+    }
+    if (Array.isArray(p.values) && p.values.length > PERSIST_POINTS) {
+        p.values = p.values.slice(0, PERSIST_POINTS);
+        p.truncated = true;
+    }
+    if (Array.isArray(p.series)) {
+        const rows = p.series.slice(0, PERSIST_SERIES);
+        p.series = rows.map(r => (Array.isArray(r) ? r.slice(0, PERSIST_POINTS) : r));
+        if (rows.length < payload.series.length) p.truncated = true;
+    }
+    return p;
+}
+
+function keeps(node) {
+    return node.properties?.[PROP_KEEP] !== false;
+}
+
+function forget(node) {
+    const had = node.properties?.[PROP_LAST] !== undefined;
+    if (node.properties) delete node.properties[PROP_LAST];
+    return had;
+}
+
+function forgetEverywhere() {
+    let count = 0;
+    for (const node of app.graph?._nodes || []) {
+        if (node?.comfyClass === NODE_ID && forget(node)) count++;
+    }
+    return count;
+}
+
+function persist(node, payload, at) {
+    if (!keeps(node)) {
+        forget(node);
+        return;
+    }
+    try {
+        if (!node.properties) node.properties = {};
+        node.properties[PROP_LAST] = JSON.stringify({ v: 1, at, payload: shrink(payload) });
+    } catch (e) {
+    }
+}
+
+function remember(node, payload) {
+    const h = getHistory(node);
+    const following = h.index < 0 || h.index >= h.entries.length - 1;
+    const at = Date.now();
+    h.entries.push({ payload, at, restored: false });
+
+    let dropped = 0;
+    while (h.entries.length > HISTORY_LIMIT) {
+        h.entries.shift();
+        dropped++;
+    }
+    h.index = following ? h.entries.length - 1 : Math.max(0, h.index - dropped);
+
+    persist(node, payload, at);
+    return h;
+}
+
+function restoreState(node) {
+    const reg = node.__showAny;
+    if (!reg || reg.restored) return;
+    reg.restored = true;
+
+    const h = getHistory(node);
+    if (!h.entries.length) {
+        const saved = node.properties?.[PROP_LAST];
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed?.payload) {
+                    h.entries.push({ payload: parsed.payload, at: parsed.at || 0, restored: true });
+                    h.index = 0;
+                }
+            } catch (e) {}
+        }
+    }
+    if (h.index >= 0) rebuild(node, false);
+}
+
+function fmtTime(ms) {
+    if (!ms) return "";
+    try {
+        const d = new Date(ms);
+        const p = (n) => String(n).padStart(2, "0");
+        return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    } catch (e) {
+        return "";
+    }
 }
 
 function textHeight(text) {
@@ -120,6 +278,19 @@ function buildText(node, text) {
     box.appendChild(ta);
     box.appendChild(makeCopyBar(() => ta.value));
     addDomDisplay(node, box, textHeight(text) + 26, "text", true);
+}
+
+function replaceWithNote(el, text) {
+    const note = document.createElement("div");
+    note.textContent = text;
+    note.style.cssText = "flex:1 1 auto;display:flex;align-items:center;justify-content:center;"
+        + "min-height:40px;padding:8px;color:#999;font:12px Arial;text-align:center;";
+    el.replaceWith(note);
+}
+
+function noteWhenMissing(el, text) {
+    el.onerror = () => replaceWithNote(el, text);
+    return el;
 }
 
 function makeSmallBtn(label, onClick) {
@@ -283,7 +454,7 @@ function buildBoolean(node, value) {
             drawBoolean(ctx, width, wy, value);
         },
     };
-    node.widgets.push(ignoreInjectedWidth(w));
+    node.widgets.push(asCanvasWidget(w));
     node.__showAny.widgets.push(w);
     node.__showAny.fill = false;
 }
@@ -305,6 +476,7 @@ function buildImages(node, images) {
         im.style.cssText = single
             ? "max-width:100%;max-height:100%;object-fit:contain;border-radius:3px;"
             : "width:calc(50% - 3px);height:auto;object-fit:contain;border-radius:3px;";
+        noteWhenMissing(im, "(the image of this run is no longer on the server)");
         box.appendChild(im);
     }
     addDomDisplay(node, box, single ? 240 : 260, "images", true);
@@ -325,6 +497,7 @@ function buildAudio(node, refs) {
         au.controls = true;
         au.src = viewURL(info);
         au.style.cssText = "width:100%;";
+        noteWhenMissing(au, "(the audio of this run is no longer on the server)");
         box.appendChild(au);
     }
     addDomDisplay(node, box, shown.length * 40 + 8, "audio", false);
@@ -342,6 +515,7 @@ function buildVideo(node, refs) {
     v.playsInline = true;
     v.src = viewURL(list[0]);
     v.style.cssText = "width:100%;height:100%;object-fit:contain;background:#000;border-radius:4px;";
+    noteWhenMissing(v, "(the video of this run is no longer on the server)");
     addDomDisplay(node, v, 240, "video", true);
 }
 
@@ -406,7 +580,7 @@ function buildEqualizer(node, values) {
             drawBars(ctx, vals.length ? vals : [0], 0, wy, width, EQ_HEIGHT, true);
         },
     };
-    node.widgets.push(ignoreInjectedWidth(w));
+    node.widgets.push(asCanvasWidget(w));
     node.__showAny.widgets.push(w);
     node.__showAny.fill = false;
     addCopyButton(node, () => JSON.stringify(values));
@@ -515,11 +689,11 @@ function drawPager(ctx, width, y, page, pages) {
     ctx.font = "11px Arial";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
-    ctx.fillText("◀ prev", EQ_MARGIN + 8, y + STACK_BTN_H / 2);
+    ctx.fillText("< prev", EQ_MARGIN + 8, y + STACK_BTN_H / 2);
     ctx.textAlign = "center";
     ctx.fillText(`${page + 1} / ${pages}`, width / 2, y + STACK_BTN_H / 2);
     ctx.textAlign = "right";
-    ctx.fillText("next ▶", width - EQ_MARGIN - 8, y + STACK_BTN_H / 2);
+    ctx.fillText("next >", width - EQ_MARGIN - 8, y + STACK_BTN_H / 2);
     ctx.textBaseline = "alphabetic";
 }
 
@@ -567,10 +741,114 @@ function buildStacked(node, series) {
             return true;
         },
     };
-    node.widgets.push(ignoreInjectedWidth(w));
+    node.widgets.push(asCanvasWidget(w));
     node.__showAny.widgets.push(w);
     node.__showAny.fill = false;
     addCopyButton(node, () => JSON.stringify(series));
+}
+
+function barZones(width) {
+    const left = EQ_MARGIN + 4;
+    const right = width - EQ_MARGIN - 4;
+    return {
+        prev: [left, left + 20],
+        next: [left + 22, left + 42],
+        latest: [right - 46, right - 26],
+        clear: [right - 20, right],
+    };
+}
+
+function drawBarButton(ctx, zone, y, label, enabled) {
+    const [x0, x1] = zone;
+    ctx.fillStyle = enabled ? "#3a3a3a" : "#262626";
+    ctx.fillRect(x0, y + 4, x1 - x0, BAR_HEIGHT - 8);
+    ctx.fillStyle = enabled
+        ? (window.LiteGraph?.WIDGET_TEXT_COLOR || "#ddd")
+        : "#5a5a5a";
+    ctx.font = "11px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, (x0 + x1) / 2, y + BAR_HEIGHT / 2);
+}
+
+function buildHistoryBar(node) {
+    const w = {
+        name: BAR_NAME,
+        type: "custom",
+        value: "",
+        serialize: false,
+        _y: 0,
+        computeSize() { return [node.size[0], BAR_HEIGHT]; },
+        draw(ctx, n, width, wy) {
+            this._y = wy;
+            const h = getHistory(node);
+            const total = h.entries.length;
+            const entry = h.entries[h.index];
+            const pinned = h.index < total - 1;
+            const z = barZones(width);
+
+            ctx.save();
+            ctx.fillStyle = "#232323";
+            ctx.fillRect(EQ_MARGIN, wy + 2, width - 2 * EQ_MARGIN, BAR_HEIGHT - 4);
+
+            const saved = node.properties?.[PROP_LAST] !== undefined;
+
+            drawBarButton(ctx, z.prev, wy, "<", h.index > 0);
+            drawBarButton(ctx, z.next, wy, ">", pinned);
+            drawBarButton(ctx, z.latest, wy, ">|", pinned);
+            drawBarButton(ctx, z.clear, wy, "x", total > 1 || saved);
+
+            const parts = [`${Math.max(0, h.index + 1)}/${total}`];
+            const time = fmtTime(entry?.at);
+            if (time) parts.push(time);
+            if (width >= 320) {
+                if (!keeps(node)) parts.push("not saved");
+                else if (entry?.restored) parts.push("restored");
+            }
+
+            ctx.fillStyle = pinned
+                ? "#e0a458"
+                : (window.LiteGraph?.WIDGET_SECONDARY_TEXT_COLOR || "#999");
+            ctx.font = "11px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(parts.join("   "), width / 2, wy + BAR_HEIGHT / 2);
+            ctx.textBaseline = "alphabetic";
+            ctx.restore();
+        },
+        mouse(event, pos, n) {
+            if (!(event.type || "").endsWith("down")) return false;
+            if (pos[1] < this._y || pos[1] > this._y + BAR_HEIGHT) return false;
+
+            const h = getHistory(node);
+            const z = barZones(node.size[0]);
+            const hit = (zone) => pos[0] >= zone[0] && pos[0] <= zone[1];
+            const last = h.entries.length - 1;
+            let changed = false;
+
+            if (hit(z.prev)) {
+                if (h.index > 0) { h.index--; changed = true; }
+            } else if (hit(z.next)) {
+                if (h.index < last) { h.index++; changed = true; }
+            } else if (hit(z.latest)) {
+                if (h.index < last) { h.index = last; changed = true; }
+            } else if (hit(z.clear)) {
+                changed = forget(node);
+                if (h.entries.length > 1) {
+                    h.entries = [h.entries[h.index]];
+                    h.index = 0;
+                    changed = true;
+                }
+            } else {
+                return false;
+            }
+
+            if (changed) requestAnimationFrame(() => rebuild(node));
+            return true;
+        },
+    };
+    node.widgets.push(asCanvasWidget(w));
+    node.__showAny.widgets.push(w);
 }
 
 function toggleViewCombo(node, show) {
@@ -594,9 +872,13 @@ function resolveStringMode(node, payload) {
     return payload.json_ok ? "json" : "text";
 }
 
-function rebuild(node) {
+function rebuild(node, fit = true) {
     const reg = node.__showAny;
-    if (!reg || !reg.lastPayload) return;
+    if (!reg) return;
+
+    const entry = currentEntry(node);
+    if (entry) reg.lastPayload = entry.payload;
+    if (!reg.lastPayload) return;
 
     clearDisplay(node);
     const payload = reg.lastPayload;
@@ -605,6 +887,8 @@ function rebuild(node) {
     const isString = kind === "string";
     toggleViewCombo(node, isString);
     if (isString) kind = resolveStringMode(node, payload);
+
+    if (entry) buildHistoryBar(node);
 
     switch (kind) {
         case "json":
@@ -639,7 +923,12 @@ function rebuild(node) {
             buildText(node, payload.text ?? "");
             break;
     }
-    fitNode(node);
+
+    if (fit) {
+        fitNode(node);
+    } else {
+        node.setDirtyCanvas(true, true);
+    }
 }
 
 function handleExecuted(node, message) {
@@ -652,8 +941,8 @@ function handleExecuted(node, message) {
     try { payload = JSON.parse(s); } catch (e) { payload = { kind: "text", text: String(s) }; }
     if (!payload) return;
 
-    node.__showAny.lastPayload = payload;
     node.__showAny.lastMessage = message;
+    remember(node, payload);
     rebuild(node);
 }
 
@@ -701,11 +990,17 @@ app.registerExtension({
         const origCreated = nodeType.prototype.onNodeCreated;
         const origExecuted = nodeType.prototype.onExecuted;
         const origRemoved = nodeType.prototype.onRemoved;
+        const origConfigure = nodeType.prototype.onConfigure;
+        const origAdded = nodeType.prototype.onAdded;
+        const origMenu = nodeType.prototype.getExtraMenuOptions;
 
         nodeType.prototype.onNodeCreated = function () {
             const r = origCreated?.apply(this, arguments);
             this.serialize_widgets = true;
             this.__showAny = { widgets: [], lastPayload: null, lastMessage: null };
+
+            if (!this.properties) this.properties = {};
+            if (this.properties[PROP_KEEP] === undefined) this.properties[PROP_KEEP] = true;
 
             ensureViewMode(this);
             this.size[0] = Math.max(this.size[0] || 0, MIN_WIDTH);
@@ -718,9 +1013,60 @@ app.registerExtension({
             return r;
         };
 
+        nodeType.prototype.onConfigure = function (info) {
+            const r = origConfigure?.apply(this, arguments);
+            const node = this;
+            requestAnimationFrame(() => restoreState(node));
+            return r;
+        };
+
+        nodeType.prototype.onAdded = function (graph) {
+            const r = origAdded?.apply(this, arguments);
+            const node = this;
+            requestAnimationFrame(() => restoreState(node));
+            return r;
+        };
+
         nodeType.prototype.onExecuted = function (message) {
             const r = origExecuted?.apply(this, arguments);
             handleExecuted(this, message);
+            return r;
+        };
+
+        nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
+            const r = origMenu?.apply(this, arguments);
+            const node = this;
+            if (!Array.isArray(options)) return r;
+
+            options.push(
+                null,
+                {
+                    content: keeps(node)
+                        ? "Show Any: stop keeping the value in the workflow"
+                        : "Show Any: keep the value in the workflow",
+                    callback: () => {
+                        if (!node.properties) node.properties = {};
+                        const on = !keeps(node);
+                        node.properties[PROP_KEEP] = on;
+                        if (!on) forget(node);
+                        node.setDirtyCanvas(true, true);
+                    },
+                },
+                {
+                    content: "Show Any: forget the value saved in the workflow",
+                    callback: () => {
+                        forget(node);
+                        node.setDirtyCanvas(true, true);
+                    },
+                },
+                {
+                    content: "Show Any: forget it on every Show Any node",
+                    callback: () => {
+                        forgetEverywhere();
+                        app.graph?.setDirtyCanvas?.(true, true);
+                    },
+                },
+            );
             return r;
         };
 

@@ -278,7 +278,12 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - **Audio** — an HTML `<audio>` player.
   - **Markdown** — rendered markdown (choose **Markdown** in the `view` combo).
   - Text / JSON / markdown / image / video panels **fill the node** as it is resized.
+  - **History** - the last 20 values are kept per node, whatever their type.
+  - **The value survives a redraw.** Coming back to the browser tab, switching workflows, or anything else that makes the frontend rebuild the graph no longer blanks the node: the history is held outside the node, and the last value is written into the node itself, so it comes back after a page reload too. A value restored that way is labeled `restored` until the node runs again.
+  - A new value never steals the view while an older one is on screen: the counter turns orange and `>|` goes back to the newest.
+  - **Nothing has to leave with the workflow.** `x` in the bar forgets the saved copy along with the older entries, and the right-click menu has *forget the value saved in the workflow*, *forget it on every Show Any node* for the whole graph at once, and *stop keeping the value in the workflow*, after which the node saves nothing at all and its bar says `not saved`. That last one is the node property `showany_keep`, so the properties panel flips it too. The value on screen is left alone by all of them - that copy goes nowhere.
 - **UI**:
+  - **History bar** above the panel: `<` `>` step one value, `>|` jumps to the newest, `x` forgets everything except the value on screen, the copy stored in the workflow included. The middle of the bar shows the position and the time of the run.
   - `view` (COMBO, shown for strings): **Auto / Text / Markdown / JSON**. Auto shows a JSON tree, or an equalizer for numeric arrays, otherwise plain text.
 - **Inputs**:
   - `source` (ANY, optional): the value to display
