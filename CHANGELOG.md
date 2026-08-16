@@ -14,6 +14,34 @@ registry, which is a separate workflow and does not need a tag.
 
 Dates are the dates the version was published. Newest first.
 
+## 0.3.0 - 2026-08-17
+
+### Added
+
+- **MiniMax H3 Multi Keyframe: anchors anywhere on the clip, not only at its
+  ends.** The core H3 node takes a first frame and a last frame and nothing
+  between them, but the limit is one line in the packed layout rather than
+  anything the rest of the path insists on: the conditioning already carries a
+  list of keyframes of any length, and the model already lays out one condition
+  segment per entry. What was missing is the temporal coordinate of an anchor
+  that is neither end, and it turns out to be linear in the frame index - one
+  expression that reproduces both core anchors exactly, so first and last come
+  out bit identical to what the core node builds and everything in between
+  simply follows the same line. Anchors arrive as a batch of images, with
+  positions written as a ratio, as frame numbers, or left empty to spread them
+  evenly, and they reach the text encoder in the order they happen.
+
+- **The layout patch travels on the model and lives for one sampling run.** A
+  node that has to reach inside the model is usually a process-wide monkeypatch
+  that outlives whatever needed it, and then owns the behaviour of every other
+  graph in the session. This one is handed out as the node's `model` output:
+  the wrapper riding on it installs the patch when sampling starts, removes it
+  in a `finally` block, and only ever touches keyframes carrying this pack's
+  own marker, so a keyframe from any other pack goes to the core code
+  untouched. Wiring that output into the sampler is therefore not optional -
+  and forgetting it stops the run with the core error about first/last anchors
+  rather than quietly piling every anchor onto frame 0.
+
 ## 0.2.4 - 2026-08-15
 
 ### Added

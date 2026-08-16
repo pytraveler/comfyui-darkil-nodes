@@ -337,6 +337,33 @@ This repository contains custom nodes for ComfyUI that extend functionality for 
   - Low-memory loading option
   - Automatic handling of missing files with error logging
 
+### MiniMax H3 Nodes
+
+#### 1. MiniMax H3 Multi Keyframe [darkilNodes]
+- **Category**: darkilNodes/minimax
+- **Description**: Replacement for the core 'MiniMax H3 Image to Video' node that anchors keyframes anywhere on the timeline instead of only at the first and the last frame. Returns the conditioning and the AV latent as the core node does, plus the model that carries the layout patch.
+- **Requires**: a ComfyUI build with MiniMax H3 support (`comfy_extras/nodes_minimax_h3.py`, `comfy/ldm/minimax/model.py`).
+- **Features**:
+  - `middle_frames` takes a batch of images, one anchor per image
+  - `middle_positions` holds one value per image, written as a 0.0-1.0 ratio or as an absolute frame index, or left empty to spread the anchors evenly
+  - anchors are clamped to the interior of the clip, and the length is snapped up to the model's 17k+5 frame grid first
+  - anchors reach the text encoder as `<Picture N>` in temporal order, so the first picture is the earliest frame
+  - `keyframe_noise_aug` sets the condition strength of every anchor; 0.999 is the core value, lower blends noise into the anchors
+  - the first and the last anchor are laid out exactly where the core node puts them
+- **How it works**: the core path already carries a list of keyframes of any length - one condition segment per entry, one condition latent per entry - and only `PackedLayout` refuses an anchor other than frame 0 and the last frame. The temporal RoPE coordinate of a condition row is linear in the pixel frame index (`origin + 5/3 * index`, the 40 Hz RoPE over 24 fps video), and that single expression reproduces both core anchors exactly. The node builds the keyframe list with real indices and returns a model carrying an OUTER_SAMPLE wrapper, which installs a marker-gated `PackedLayout` patch for the duration of one sampling run and removes it in a `finally` block. Nothing is patched process wide, and keyframes without the marker - including those from other packs - are handed to the core code untouched.
+- **Wiring**: `clip`, `vae` and `model` come from the same places as for the core node, and the `model` output has to reach the sampler (the guider). Without it the run stops with the core error `only first/last keyframe anchors are supported` rather than quietly stacking every anchor on frame 0.
+- **Inputs**:
+  - `model` (MODEL), `clip` (CLIP), `vae` (VAE)
+  - `prompt`, `width`, `height`, `length`
+  - `middle_positions`, `position_units` (ratio / frames), `middle_fit` (cover / stretch), `keyframe_noise_aug`
+  - `first_frame`, `last_frame`, `middle_frames` (IMAGE, all optional)
+- **Outputs**:
+  - `positive` (CONDITIONING), `latent` (LATENT), `model` (MODEL)
+- **Notes**:
+  - H3 was trained with first and last anchors (fl2va), so a middle anchor is outside that distribution. It does hold in practice - a marker drawn on the middle image shows up in the middle of the clip, with the motion around it staying consistent - but the further past three anchors it goes, the less trodden the ground.
+  - Each extra anchor adds one condition segment to the packed sequence, about 1000 rows at 1344x768.
+  - `keyframe_noise_aug` below 0.999 is the first knob to reach for when the model fights an anchor.
+
 ### Conditioning Nodes
 
 #### 1. Krea2 Rebalance Equalizer [darkilNodes]
